@@ -1,0 +1,9 @@
+*.egg-info
+*.pyc
+*.csv
+.rope*
+*~
+.#*
+\#*
+t
+t.*

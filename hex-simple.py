@@ -8,6 +8,7 @@ too slow for larger boards
 4x4 empty board, x-to-move, x wins, 7034997 calls
 """
 
+import numpy as np
 from collections import deque
 
 """
@@ -26,9 +27,9 @@ def oppCH(ch):
 """
 board: one-dimensional string
 
-index positions for     board:    0 1 2       <- row 2
+index positions for     board:    0 1 2       <- row 0
                                    3 4 5       <- row 1
-                                    0 1 2       <- row 0
+                                    6 7 8       <- row 2
 """
 
 def coord_to_point(r, c, C): 
@@ -56,7 +57,7 @@ class Position: # hex board
   def __init__(self, rows, cols):
     self.R, self.C, self.n = rows, cols, rows*cols
     self.brd = PTS[EMPTY]*self.n
-    self.H = [self.brd]
+    self.H = []
     self.cache = dict()
     self.nbrs = []
     for r in range(self.R):
@@ -85,6 +86,7 @@ class Position: # hex board
     else: self.CELLS = [j for j in range(self.n)]  # this order terrible for solving
 
   def requestmove(self, cmd):
+    c = cmd
     parseok, cmd = False, cmd.split()
     ret = ''
     if len(cmd) != 2:
@@ -103,19 +105,18 @@ class Position: # hex board
       print('coordinate off board')
       return ret
     where = coord_to_point(x,y,self.C)
-    if self.brd[where] != ECH:
+    if ch != ECH and self.brd[where] != ECH:
       print('\n  sorry, position occupied')
       return ret
-    new = change_str(self.brd, where, ch)
-    self.brd = new
-    self.H.append(new)
-    return new
+    self.brd = change_str(self.brd, where, ch)
+    if ch != ECH:
+      self.H.append((ch, where))
 
-  def has_win(self, brd, who):
+  def has_win(self, who):
     set1, set2 = (self.TOP_ROW, self.BTM_ROW) if who == BCH else (self.LFT_COL, self.RGT_COL)
     Q, seen = deque([]), set()
     for c in set1:
-      if brd[c] == who: 
+      if self.brd[c] == who: 
         Q.append(c)
         seen.add(c)
     while len(Q) > 0:
@@ -123,31 +124,37 @@ class Position: # hex board
       if c in set2: 
         return True
       for d in self.nbrs[c]:
-        if brd[d] == who and d not in seen:
+        if self.brd[d] == who and d not in seen:
           Q.append(d)
           seen.add(d)
     return False
         
-  def win_move(self, s, ptm): # assume neither player has won yet
+  def win_move(self, ptm): # assume neither player has won yet
     tt = self.cache
     blanks, calls = [], 1
     for j in self.CELLS:
-      if s[j]==ECH: blanks.append(j)
+      if self.brd[j]==ECH: blanks.append(j)
     optm = oppCH(ptm)
     for k in blanks:
-      t = change_str(s, k, ptm)
-      if t in tt and tt[t][1] == ptm:
-        return tt[t][0], 1
-      if self.has_win(t, ptm):
+      self.brd = change_str(self.brd, k, ptm)
+      self.H.append((ptm, k))
+      if self.brd in tt and tt[self.brd][1] == ptm:
+        ret = (tt[self.brd][0], 1)
+        self.undo()
+        return ret
+      if self.has_win(ptm):
         pt = point_to_alphanum(k, self.C)
-        tt[t] = (pt, ptm)
+        tt[self.brd] = (pt, ptm)
+        self.undo()
         return pt, calls
-      cw, prev_calls = self.win_move(t, optm)
+      cw, prev_calls = self.win_move(optm)
       calls += prev_calls
       if not cw:
         pt = point_to_alphanum(k, self.C)
-        tt[t] = (pt, ptm)
+        tt[self.brd] = (pt, ptm)
+        self.undo()
         return pt, calls
+      self.undo()
     return '', calls
 
   def showboard(self):
@@ -171,17 +178,16 @@ class Position: # hex board
     print(pretty)
 
   def undo(self):  # pop last meta-move
-    if len(self.H)==1:
+    if not self.H:
       print('\n    original position,  nothing to undo\n')
     else:
-      self.H.pop()
-      self.brd = self.H[-1]
+      self.brd = change_str(self.brd, self.H.pop()[1], ECH)
 
   def msg(self, ch):
-    if self.has_win(self.brd, 'x'): return('x has won')
-    elif self.has_win(self.brd, 'o'): return('o has won')
+    if self.has_win('x'): return('x has won')
+    elif self.has_win('o'): return('o has won')
     else: 
-      wm, calls = self.win_move(self.brd, ch)
+      wm, calls = self.win_move(ch)
       out = '\n' + ch + '-to-move: '
       out += (ch if wm else oppCH(ch)) + ' wins' 
       out += (' ... ' if wm else ' ') + wm + '\n'
