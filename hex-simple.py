@@ -8,7 +8,6 @@ too slow for larger boards
 4x4 empty board, x-to-move, x wins, 7034997 calls
 """
 
-import numpy as np
 from collections import deque
 
 """
@@ -41,6 +40,12 @@ def point_to_coord(p, C):
 def point_to_alphanum(p, C):
   r, c = point_to_coord(p, C)
   return 'abcdefghj'[c] + '1234566789'[r]
+
+def pointset_to_str(S):
+  s = ''
+  for j in range(N):
+    s += BCH if j in S else ECH
+  return s
 
 def change_str(s, where, what):
   return s[:where] + what + s[where+1:]
@@ -130,32 +135,40 @@ class Position: # hex board
     return False
         
   def win_move(self, ptm): # assume neither player has won yet
-    tt = self.cache
-    blanks, calls = [], 1
-    for j in self.CELLS:
-      if self.brd[j]==ECH: blanks.append(j)
     optm = oppCH(ptm)
-    for k in blanks:
-      self.brd = change_str(self.brd, k, ptm)
-      self.H.append((ptm, k))
-      if self.brd in tt and tt[self.brd][1] == ptm:
-        ret = (tt[self.brd][0], 1)
-        self.undo()
-        return ret
+    calls, win_set = 1, set()
+    mustplay, opt_win_threats = set(), []
+    for j in self.CELLS:
+      if self.brd[j]==ECH: mustplay.add(j)
+
+    while len(mustplay) > 0:
+      for move in self.CELLS:
+        if move in mustplay: break
+      self.brd = change_str(self.brd, move, ptm)
+      self.H.append((ptm, move))
       if self.has_win(ptm):
-        pt = point_to_alphanum(k, self.C)
-        tt[self.brd] = (pt, ptm)
         self.undo()
-        return pt, calls
-      cw, prev_calls = self.win_move(optm)
-      calls += prev_calls
-      if not cw:
-        pt = point_to_alphanum(k, self.C)
-        tt[self.brd] = (pt, ptm)
+        return point_to_alphanum(move, self.C), calls, {move}
+      omv, ocalls, oset = self.win_move(optm)
+      calls += ocalls
+      if not omv: # opponent has no winning response to ptm move
         self.undo()
-        return pt, calls
+        oset.add(move)
+        return point_to_alphanum(move, self.C), calls, oset
+      mustplay = mustplay.intersection(oset)
+      opt_win_threats.append(oset)
       self.undo()
-    return '', calls
+    z = len(opt_win_threats)
+    ovc = opt_win_threats[z-1]
+    if z > 1: ovc = ovc.union(opt_win_threats[z-2])
+    if z > 2:
+      inter = opt_win_threats[z-1].intersection(opt_win_threats[z-2])
+      j = z - 3
+      while len(inter) > 0:
+        inter = inter.intersection(opt_win_threats[j])
+        ovc = ovc.union(opt_win_threats[j])
+        j -= 1
+    return '', calls, ovc
 
   def showboard(self):
     def paint(s):
@@ -187,7 +200,7 @@ class Position: # hex board
     if self.has_win('x'): return('x has won')
     elif self.has_win('o'): return('o has won')
     else: 
-      wm, calls = self.win_move(ch)
+      wm, calls, vc = self.win_move(ch)
       out = '\n' + ch + '-to-move: '
       out += (ch if wm else oppCH(ch)) + ' wins' 
       out += (' ... ' if wm else ' ') + wm + '\n'
