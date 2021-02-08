@@ -223,30 +223,28 @@ def interact():
   history = []  # board positions
   while True:
     p.showboard()
-    cmd = input(' ')
+    cmd = input(' ').split()
     if len(cmd)==0:
       print('\n ... adios :)\n')
       return
-    if cmd[0][0]=='h':
+    if cmd[0]=='h':
       printmenu()
-    elif cmd[0][0]=='z':
-      cmd = cmd.split()
+    elif cmd[0]=='z':
       try:
         sz = int(cmd[1])
         if (sz > 0):
           p = Position(sz, sz)
       except:
         pass
-    elif cmd[0][0]=='u':
+    elif cmd[0]=='u':
       p.undo()
-    elif cmd[0][0]=='?':
-      cmd = cmd.split()
+    elif cmd[0]=='?':
       if len(cmd)>0:
-        if cmd[1][0]=='x': 
+        if cmd[1]=='x': 
           print(p.msg('x'))
-        elif cmd[1][0]=='o': 
+        elif cmd[1]=='o': 
           print(p.msg('o'))
-    elif (cmd[0][0] in PTS):
-      p.requestmove(cmd)
+    elif (cmd[0] in PTS):
+      p.requestmove(cmd[0] + ' ' + ''.join(cmd[1:]))
 
 interact()
