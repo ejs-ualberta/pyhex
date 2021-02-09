@@ -7,7 +7,7 @@ too slow for larger boards
 
 4x4 empty board, x-to-move, x wins, 7034997 calls
 """
-#import copy
+import copy
 from collections import deque
 
 """
@@ -139,8 +139,10 @@ class Position: # hex board
     calls, win_set = 1, set()
     mustplay, opt_win_threats = set(), []
     for j in self.CELLS:
-      if self.brd[j]==ECH: mustplay.add(j)
+      if self.brd[j]==ECH:
+        mustplay.add(j)
 
+    mp = copy.copy(mustplay)
     while len(mustplay) > 0:
       # Find first empty cell
       for move in self.CELLS:
@@ -149,19 +151,23 @@ class Position: # hex board
       self.brd = change_str(self.brd, move, ptm)
       self.H.append((ptm, move))
 
+      if (self.brd, ptm) in self.cache:
+        ret = self.cache[(self.brd, ptm)]
+        self.undo()
+        return ret
+
       if self.has_win(ptm):
         pt = point_to_alphanum(move, self.C)
-        #self.cache[(self.brd, ptm)] = (pt, 1, {move})
+        #self.cache[(self.brd, ptm)] = (pt, 1, {move}) #This messes everything up?
         self.undo()
         return pt, calls, {move}
 
-      # oset is the set of win threats for the current ptm
       omv, ocalls, oset = self.win_move(optm)
       calls += ocalls
       if not omv: # opponent has no winning response to ptm move
         oset.add(move)
         pt = point_to_alphanum(move, self.C)
-        #self.cache[(self.brd, ptm)] = (pt, 1, copy.copy(oset))
+        self.cache[(self.brd, ptm)] = (pt, 1, copy.copy(oset))
         self.undo()
         return pt, calls, oset
 
@@ -170,16 +176,11 @@ class Position: # hex board
       opt_win_threats.append(oset)
       self.undo()
 
-    z = len(opt_win_threats)
-    ovc = opt_win_threats[z-1]
-    if z > 1: ovc = ovc.union(opt_win_threats[z-2])
-    if z > 2:
-      inter = opt_win_threats[z-1].intersection(opt_win_threats[z-2])
-      j = z - 3
-      while len(inter) > 0:
-        inter = inter.intersection(opt_win_threats[j])
-        ovc = ovc.union(opt_win_threats[j])
-        j -= 1
+    ovc = set()
+    while mp:
+      last = opt_win_threats.pop()
+      ovc = ovc.union(last)
+      mp = mp.intersection(last)
     return '', calls, ovc
 
   def showboard(self):
