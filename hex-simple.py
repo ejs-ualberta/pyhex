@@ -7,7 +7,7 @@ too slow for larger boards
 
 4x4 empty board, x-to-move, x wins, 7034997 calls
 """
-
+#import copy
 from collections import deque
 
 """
@@ -135,29 +135,41 @@ class Position: # hex board
     return False
         
   def win_move(self, ptm): # assume neither player has won yet
-    optm = oppCH(ptm)
+    optm = oppCH(ptm) 
     calls, win_set = 1, set()
     mustplay, opt_win_threats = set(), []
     for j in self.CELLS:
       if self.brd[j]==ECH: mustplay.add(j)
 
     while len(mustplay) > 0:
+      # Find first empty cell
       for move in self.CELLS:
         if move in mustplay: break
+
       self.brd = change_str(self.brd, move, ptm)
       self.H.append((ptm, move))
+
       if self.has_win(ptm):
+        pt = point_to_alphanum(move, self.C)
+        #self.cache[(self.brd, ptm)] = (pt, 1, {move})
         self.undo()
-        return point_to_alphanum(move, self.C), calls, {move}
+        return pt, calls, {move}
+
+      # oset is the set of win threats for the current ptm
       omv, ocalls, oset = self.win_move(optm)
       calls += ocalls
       if not omv: # opponent has no winning response to ptm move
-        self.undo()
         oset.add(move)
-        return point_to_alphanum(move, self.C), calls, oset
+        pt = point_to_alphanum(move, self.C)
+        #self.cache[(self.brd, ptm)] = (pt, 1, copy.copy(oset))
+        self.undo()
+        return pt, calls, oset
+
+      # Get all the empty moves that are winning
       mustplay = mustplay.intersection(oset)
       opt_win_threats.append(oset)
       self.undo()
+
     z = len(opt_win_threats)
     ovc = opt_win_threats[z-1]
     if z > 1: ovc = ovc.union(opt_win_threats[z-2])
@@ -179,15 +191,23 @@ class Position: # hex board
         else:             pt += j
       return pt
 
-    pretty = '\n   ' 
+    pretty = '\n '
     for c in range(self.C): # columns
       pretty += ' ' + paint(chr(ord('a')+c))
-    pretty += '\n'
+    pretty += '\n + '
+    for c in range(self.C): # columns
+      pretty += paint(BCH) + ' '
+    pretty += '+\n'
     for j in range(self.R): # rows
-      pretty += ' ' + ' '*j + paint(str(1+j)) + ' '
+      pretty += ' '*j + paint(str(1+j)) + ' ' + paint(WCH)
       for k in range(self.C): # columns
-        pretty += ' ' + paint([self.brd[coord_to_point(j,k,self.C)]])
-      pretty += '\n'
+        pretty += ' ' + paint([self.brd[coord_to_point(j,k,self.C)]]) 
+      pretty += ' ' + paint(WCH) + '\n'
+
+    pretty += '  '  + ' ' * self.R + '+'
+    for c in range(self.C):
+      pretty += ' ' + paint(BCH)
+    pretty += '+\n'
     print(pretty)
 
   def undo(self):  # pop last meta-move
@@ -219,8 +239,7 @@ def printmenu():
 
 
 def interact():
-  p = Position(4, 4) #TODO: put x/o along sides
-  history = []  # board positions
+  p = Position(4, 4)
   while True:
     p.showboard()
     cmd = input(' ').split()

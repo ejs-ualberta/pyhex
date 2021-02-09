@@ -46,6 +46,14 @@ class AutoTree:
         for p in tree:
             self.Patterns[p[0]] = Pattern(p)
 
+    def get_root(self):
+        pass
+
+    def is_elusive(self, root_pattern):
+        pass
+
+    def is_satisfying(self, root_pattern):
+        pass
 
 class Pattern:
     def __init__(self, plst):
