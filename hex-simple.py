@@ -9,6 +9,7 @@ too slow for larger boards
 """
 from copy import copy
 import time
+import math
 from collections import deque
 
 """
@@ -65,6 +66,7 @@ class Position: # hex board
     self.brd = PTS[EMPTY]*self.n
     self.H = []
     #self.cache = dict()
+
     self.nbrs = []
     for r in range(self.R):
       for c in range(self.C):
@@ -136,7 +138,8 @@ class Position: # hex board
           seen.add(d)
     return False
 
-  def connected_cells(self, pt, ptm):
+  def connected_cells(self, pt, ptm, side1, side2):
+    set1, set2 = (self.TOP_ROW, self.BTM_ROW) if ptm == BCH else (self.LFT_COL, self.RGT_COL)
     q, seen, reachable = deque([]), set(), set()
     if self.brd[pt] == ptm:
       seen = {pt}
@@ -144,6 +147,10 @@ class Position: # hex board
       while len(q) > 0:
         c = q.popleft()
         seen.add(c)
+        if c in set1:
+          reachable.add(side1)
+        elif c in set2:
+          reachable.add(side2)
         nbrs = self.nbrs[c]
         for n in nbrs:
           if self.brd[n] == ptm and n not in seen:
@@ -155,11 +162,24 @@ class Position: # hex board
   def live_cells(self, ptm):
     set1, set2 = (self.TOP_ROW, self.BTM_ROW) if ptm == BCH else (self.LFT_COL, self.RGT_COL)
     connections = {}
-    # Connect adjacent empty cells
+
+    # Connect adjacent empty cells, and create "sides"
+    side1 = len(self.brd)
+    side2 = side1 + 1
+    connections[side1] = set()
+    connections[side2] = set()
     for i in range(len(self.brd)):
       if self.brd[i] == ECH:
         nbrs = self.nbrs[i]
         connections[i] = set()
+        # Connect to two "sides"
+        if i in set1:
+          connections[side1].add(i)
+          connections[i].add(side1)
+        elif i in set2:
+          connections[i].add(side2)
+          connections[side2].add(i)
+        # Connect adjacent empty cells
         for n in nbrs:
           if self.brd[n] == ECH:
             connections[i].add(n)
@@ -168,13 +188,38 @@ class Position: # hex board
     seen = set()
     for i in range(len(self.brd)):
       if self.brd[i] == ptm and i not in seen:
-        s, r = self.connected_cells(i, ptm)
+        s, r = self.connected_cells(i, ptm, side1, side2)
         seen = seen.union(s)
         for c in r:
           cr = connections[c].union(r)
           cr.remove(c)
           connections[c] = cr
-    return connections
+
+    paths = self.paths_from(connections, set(), side1)
+    paths = [i for i in paths if len(set(i)) == len(i)]
+    live = set()
+    for p in paths:
+      for pt in p:
+        live.add(pt)
+    if side1 in live:
+      live.remove(side1)
+    if side2 in live:
+      live.remove(side2)
+    return live
+
+  def paths_from(self, connections, visited, node):
+    if node in visited:
+      return set([tuple()])
+    visited.add(node)
+    paths = set()
+    for nd in connections[node]:
+      p1 = self.paths_from(connections, visited, nd)
+      for p in p1:
+        paths.add((node,) + p)
+
+    visited.remove(node)
+    return paths
+      
         
   def win_move(self, ptm): # assume neither player has won yet
     optm = oppCH(ptm) 
@@ -185,7 +230,6 @@ class Position: # hex board
         mustplay.add(j)
 
     #mustplay = set(self.live_cells(ptm))
-
     mp = copy(mustplay)
     while len(mustplay) > 0:
       # Find first empty cell
