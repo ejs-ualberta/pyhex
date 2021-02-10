@@ -7,7 +7,8 @@ too slow for larger boards
 
 4x4 empty board, x-to-move, x wins, 7034997 calls
 """
-import copy
+#import copy
+import time
 from collections import deque
 
 """
@@ -63,7 +64,7 @@ class Position: # hex board
     self.R, self.C, self.n = rows, cols, rows*cols
     self.brd = PTS[EMPTY]*self.n
     self.H = []
-    self.cache = dict()
+    #self.cache = dict()
     self.nbrs = []
     for r in range(self.R):
       for c in range(self.C):
@@ -87,7 +88,8 @@ class Position: # hex board
     if self.R == 3 and self.C == 3: self.CELLS = (4,2,6,3,5,1,7,0,8)
     elif self.R == 3 and self.C == 4: self.CELLS = (5,6,4,7,2,9,3,8,1,10,0,11)
     elif self.R == 4 and self.C == 4: self.CELLS = (6,9,3,12,2,13,5,10,8,7,1,14,4,11,0,15)
-    #elif self.R == 5 and self.C == 5: self.CELLS = (13, 14, 12, 15, 11, 16, 10, 17, 9, 18, 8, 19, 7, 20, 6, 21, 5, 22, 4, 23, 3, 24, 2, 1)
+    elif self.R == 5 and self.C == 5: 
+      self.CELLS = (12,8,16,7,17,6,18,11,13,4,20,3,21,2,22,15,9,10,14,5,19,1,23,0,24)
     else: self.CELLS = [j for j in range(self.n)]  # this order terrible for solving
 
   def requestmove(self, cmd):
@@ -151,14 +153,8 @@ class Position: # hex board
       self.brd = change_str(self.brd, move, ptm)
       self.H.append((ptm, move))
 
-      if (self.brd, ptm) in self.cache:
-        ret = self.cache[(self.brd, ptm)]
-        self.undo()
-        return ret
-
       if self.has_win(ptm):
         pt = point_to_alphanum(move, self.C)
-        #self.cache[(self.brd, ptm)] = (pt, 1, {move}) #This messes everything up?
         self.undo()
         return pt, calls, {move}
 
@@ -167,11 +163,9 @@ class Position: # hex board
       if not omv: # opponent has no winning response to ptm move
         oset.add(move)
         pt = point_to_alphanum(move, self.C)
-        self.cache[(self.brd, ptm)] = (pt, 1, copy.copy(oset))
         self.undo()
         return pt, calls, oset
 
-      # Get all the empty moves that are winning
       mustplay = mustplay.intersection(oset)
       opt_win_threats.append(oset)
       self.undo()
@@ -220,12 +214,14 @@ class Position: # hex board
   def msg(self, ch):
     if self.has_win('x'): return('x has won')
     elif self.has_win('o'): return('o has won')
-    else: 
+    else:
+      st = time.time()
       wm, calls, vc = self.win_move(ch)
       out = '\n' + ch + '-to-move: '
       out += (ch if wm else oppCH(ch)) + ' wins' 
       out += (' ... ' if wm else ' ') + wm + '\n'
       out += str(calls) + ' calls\n'
+      out += "%.4f" % (time.time() - st) + 's \n'
       return out
 
 
