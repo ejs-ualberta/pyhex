@@ -7,7 +7,7 @@ too slow for larger boards
 
 4x4 empty board, x-to-move, x wins, 7034997 calls
 """
-#import copy
+from copy import copy
 import time
 from collections import deque
 
@@ -135,6 +135,46 @@ class Position: # hex board
           Q.append(d)
           seen.add(d)
     return False
+
+  def connected_cells(self, pt, ptm):
+    q, seen, reachable = deque([]), set(), set()
+    if self.brd[pt] == ptm:
+      seen = {pt}
+      q.append(pt)
+      while len(q) > 0:
+        c = q.popleft()
+        seen.add(c)
+        nbrs = self.nbrs[c]
+        for n in nbrs:
+          if self.brd[n] == ptm and n not in seen:
+            q.append(n)
+          elif self.brd[n] == ECH:
+            reachable.add(n)
+    return seen, reachable
+
+  def live_cells(self, ptm):
+    set1, set2 = (self.TOP_ROW, self.BTM_ROW) if ptm == BCH else (self.LFT_COL, self.RGT_COL)
+    connections = {}
+    # Connect adjacent empty cells
+    for i in range(len(self.brd)):
+      if self.brd[i] == ECH:
+        nbrs = self.nbrs[i]
+        connections[i] = set()
+        for n in nbrs:
+          if self.brd[n] == ECH:
+            connections[i].add(n)
+
+    # Connect cells that are joined by ptm stones
+    seen = set()
+    for i in range(len(self.brd)):
+      if self.brd[i] == ptm and i not in seen:
+        s, r = self.connected_cells(i, ptm)
+        seen = seen.union(s)
+        for c in r:
+          cr = connections[c].union(r)
+          cr.remove(c)
+          connections[c] = cr
+    return connections
         
   def win_move(self, ptm): # assume neither player has won yet
     optm = oppCH(ptm) 
@@ -144,7 +184,9 @@ class Position: # hex board
       if self.brd[j]==ECH:
         mustplay.add(j)
 
-    mp = copy.copy(mustplay)
+    #mustplay = set(self.live_cells(ptm))
+
+    mp = copy(mustplay)
     while len(mustplay) > 0:
       # Find first empty cell
       for move in self.CELLS:
@@ -260,6 +302,8 @@ def interact():
           print(p.msg('x'))
         elif cmd[1]=='o': 
           print(p.msg('o'))
+    elif cmd[0] == 'c':
+      print(p.live_cells(cmd[1]))
     elif (cmd[0] in PTS):
       p.requestmove(cmd[0] + ' ' + ''.join(cmd[1:]))
 
