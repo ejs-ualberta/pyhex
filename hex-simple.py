@@ -195,8 +195,7 @@ class Position: # hex board
           cr.remove(c)
           connections[c] = cr
 
-    paths = self.paths_from(connections, set(), side1)
-    paths = [i for i in paths if len(set(i)) == len(i)]
+    paths = self.induced_paths_from_to(connections, set(), side1, side2)
     live = set()
     for p in paths:
       for pt in p:
@@ -207,16 +206,34 @@ class Position: # hex board
       live.remove(side2)
     return live
 
-  def paths_from(self, connections, visited, node):
-    if node in visited:
-      return set([tuple()])
+  def induced_paths_from_to(self, connections, visited, node, end):
+    if node == end:
+      return {(end,)}
     visited.add(node)
     paths = set()
-    for nd in connections[node]:
-      p1 = self.paths_from(connections, visited, nd)
+    candidates = set()
+    for n in connections[node]:
+      # If the function was called on this node it must be a candidate
+      # So the only node that could be in visited that is connected to it
+      # would be the previous node. So don't go back to that one.
+      if n in visited:
+        continue
+      is_candidate = True
+      for n1 in connections[n]:
+        if n1 in visited and n1 != node:
+          is_candidate = False
+          break
+      if is_candidate:
+        candidates.add(n)
+
+    if not candidates:
+      visited.remove(node)
+      # Path does not end at end so discard it
+      return {}
+    for n in candidates:
+      p1 = self.induced_paths_from_to(connections, visited, n, end)
       for p in p1:
         paths.add((node,) + p)
-
     visited.remove(node)
     return paths
       
@@ -224,12 +241,8 @@ class Position: # hex board
   def win_move(self, ptm): # assume neither player has won yet
     optm = oppCH(ptm) 
     calls, win_set = 1, set()
-    mustplay, opt_win_threats = set(), []
-    for j in self.CELLS:
-      if self.brd[j]==ECH:
-        mustplay.add(j)
-
-    #mustplay = set(self.live_cells(ptm))
+    opt_win_threats = []
+    mustplay = self.live_cells(ptm)
     mp = copy(mustplay)
     while len(mustplay) > 0:
       # Find first empty cell
