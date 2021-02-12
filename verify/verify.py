@@ -1,11 +1,32 @@
+conj = "and"
+disj = "or"
+
+class Node:
+    def __init__(self, expr):
+        self.op = expr[0]
+        lb = 2
+        if self.op == conj:
+            self.move = expr[1]
+        else:
+            self.move = None
+            lb = 1
+        self.children = []
+        self.cells = {self.move}
+        for item in expr[lb:]:
+            if type(item) == str:
+                self.cells.add(item)
+                self.children.append(Node([conj, item]))
+            elif type(item) == Node:
+                self.cells = self.cells.union(item.cells)
+                self.children.append(item)
+        #print(self.cells)
+
 p_left = '('
 p_right = ')'
-blk_l_delim = '['
-blk_r_delim = ']'
 comment = '//'
-class AutoTree:
+class AndOrAutoTree:
     def __init__(self, exp):
-        ops = {p_left, p_right, blk_l_delim, blk_r_delim}
+        ops = {p_left, p_right}
         whitespace = {' ', '\t', '\n'}
         def ignore_comments(exp, i):
             if (i < len(exp) - 1) and exp[i:i+2] == comment:
@@ -16,16 +37,11 @@ class AutoTree:
         def init(exp, i):
             ret = []
             while i < len(exp):
-                if exp[i] == blk_l_delim:
-                    tmp, i = init(exp, i+1)
-                    ret.append(tmp)
-                elif exp[i] == blk_r_delim:
-                    return ret, i
-                elif exp[i] == p_left:
+                if exp[i] == p_left:
                     tmp, i = init(exp, i+1)
                     ret.append(tmp)
                 elif exp[i] == p_right:
-                    return tuple(ret), i
+                    return Node(ret), i
                 elif exp[i] in whitespace:
                     pass
                 else:
@@ -42,12 +58,7 @@ class AutoTree:
                 i += 1
             return (ret, i)
         tree, _ = init(exp, 0)
-        self.Patterns = dict()
-        for p in tree:
-            self.Patterns[p[0]] = Pattern(p)
-
-    def get_root(self):
-        pass
+        self.tree = tree[0]
 
     def is_elusive(self, root_pattern):
         pass
@@ -55,13 +66,4 @@ class AutoTree:
     def is_satisfying(self, root_pattern):
         pass
 
-class Pattern:
-    def __init__(self, plst):
-        self.plst = plst
-        self.name = plst[0]
-        self.debug = plst[1]
-        self.unoccupied = plst[2]
-        self.occupied = plst[3]
-        self.tree = plst[4]
-
-print(AutoTree("( pattern8 ((c6 BR) (d4 BR))(d6 e3 e4 e5 e6 f2 f3 f4 f5 f6 g1 g2 g3 g4 g5 g6)(c6 d4 BR)[(f3 [(pattern2ab (e3 e4) (d4 f3))][(pattern2ab (g2 g3) (f3 BR))])(e5 [(d6) (e4)][(pattern13 (e6 f4 f5 f6 g3 g4 g5 g6) (e5 BR))])(f2 [(pattern2ab (g1 g2) (f2 BR))][(pattern9 (g5 g4 f5 f4 f3 e5 e4 e3) (BR f2 d4))])(e3 [(pattern17 (d6 e5 e6 f2 f3 f4 f5 g1 g2 g3 g4 g5) (c6 d4 e3 BR))]) ])").Patterns["pattern8"].tree)
+print(AndOrAutoTree("(and b2 (or b1 c1) (or a3 b3))").tree.children[1].children[0].move)

@@ -43,5 +43,9 @@
 "BM 1",
 "ND 0",
 
-(pattern1 ((TL BR)) (b1 c1 a3 b3) (b2) [])
-(pattern2 )
+(pattern1
+  ((TL BR))
+  (b1 c1 a3 b3)
+  (b2)
+  [(b1 c1)
+   (a3 b3)])

@@ -359,8 +359,8 @@ def interact():
           print(p.msg('x'))
         elif cmd[1]=='o': 
           print(p.msg('o'))
-    elif cmd[0] == 'c':
-      print(p.live_cells(cmd[1]))
+    elif cmd[0] == 'l':
+      print(" ".join(sorted([point_to_alphanum(x, p.C) for x in p.live_cells(cmd[1])])))
     elif (cmd[0] in PTS):
       p.requestmove(cmd[0] + ' ' + ''.join(cmd[1:]))
 
