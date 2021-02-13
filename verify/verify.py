@@ -115,6 +115,9 @@ class AndOrAutoTree:
             board.requestmove(BCH + ' ' + nd.move)
         if not nd.children:
             w = board.has_win(BCH)
+            if not w:
+                print("Not satisfying:")
+                board.showboard()
             board.undo()
             return w
         for ch in nd.children:
@@ -164,12 +167,15 @@ class AndOrAutoTree:
         return True
             
     def verify(self):
-        return self.is_satisfying() and self.is_elusive()
+        # Check elusiveness first
+        return self.is_elusive() and self.is_satisfying()
         
-#tr = "(and c2 (or c1 d1) (or (and b3 (or a4 b4)) (and d3 (or d2 c3) (or c4 d4))))"
+tr = "(and c2 (or c1 d1) (or (and b3 (or a4 b4)) (and d3 (or d2 c3) (or c4 d4))))"
 #tr = "(and b2 (or (and b1 (or a3 b3)) (and c1 (or a3 b3)) (and a3 (or b1 c1)) (and b3 (or b1 c1))))"
-tr = "(and b2 (or b1 c1) (or a3 b3))"
-autotr = AndOrAutoTree(tr, 3, 3)
+#tr = "(and b2 (or b1 c1) (or a3 b3))"
+autotr = AndOrAutoTree(tr, 4, 4)
 print(autotr)
+print()
 print(autotr.expand(autotr.tree))
+print()
 print(autotr.verify())
