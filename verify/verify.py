@@ -84,7 +84,6 @@ class AndOrAutoTree:
 
 
     def expand(self, root):
-        #TODO make sure root.cells is updated
         r = copy(root)
         if not r.children:
             return r
@@ -107,6 +106,7 @@ class AndOrAutoTree:
         union = {root.move}
         for ch in root.children:
             union.union(ch.cells)
+        r.cells = union
         return r
 
 
