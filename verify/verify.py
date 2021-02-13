@@ -1,8 +1,10 @@
-conj = "and"
-disj = "or"
+from copy import copy
 
 from board import Position, BCH
 
+
+conj = "and"
+disj = "or"
 class Node:
     def __init__(self, expr):
         self.op = expr[0]
@@ -81,6 +83,33 @@ class AndOrAutoTree:
         self.tree = tree[0]
 
 
+    def expand(self, root):
+        #TODO make sure root.cells is updated
+        r = copy(root)
+        if not r.children:
+            return r
+        ch = Node([disj])
+        r.children = [ch]
+
+        gch = []
+        for i in range(len(root.children)):
+            cch = root.children[i].children
+            for c in cch:
+                newc = copy(c)
+                newc.children = copy(c.children)
+                newc.children.extend(root.children[:i] + root.children[i+1:])
+                gch.append(newc)
+
+        ch.children = gch
+        for i in range(len(ch.children)):
+            ch.children[i] = self.expand(ch.children[i])
+
+        union = {root.move}
+        for ch in root.children:
+            union.union(ch.cells)
+        return r
+
+
     def _is_satisfying(self, board, nd):
         if nd.op == conj:
             board.requestmove(BCH + ' ' + nd.move)
@@ -98,8 +127,7 @@ class AndOrAutoTree:
 
 
     def is_satisfying(self):
-        #root = self.expand()
-        root = self.tree
+        root = self.expand(self.tree)
         board = Position(self.rows, self.cols)
         return self._is_satisfying(board, root)
 
@@ -122,8 +150,6 @@ class AndOrAutoTree:
                         return False
                            
         elif root.op == disj:
-            # or nodes must have at least two children, otherwise
-            # there is no point using an or node.
             if len(root.children) < 2:
                 print("Or node has less than 2 children\n--> ", end='')
                 print(root)
@@ -137,8 +163,13 @@ class AndOrAutoTree:
                 return False
         return True
             
-
-tr = "(and b2 (or (and b1 (or a3 b3)) (and c1 (or a3 b3)) (and a3 (or b1 c1)) (and b3 (or b1 c1))))"
-#tr = "(and b2 (or b1 c1) (or a3 b3))"
+    def verify(self):
+        return self.is_satisfying() and self.is_elusive()
+        
+#tr = "(and c2 (or c1 d1) (or (and b3 (or a4 b4)) (and d3 (or d2 c3) (or c4 d4))))"
+#tr = "(and b2 (or (and b1 (or a3 b3)) (and c1 (or a3 b3)) (and a3 (or b1 c1)) (and b3 (or b1 c1))))"
+tr = "(and b2 (or b1 c1) (or a3 b3))"
 autotr = AndOrAutoTree(tr, 3, 3)
-print(autotr.is_satisfying())
+print(autotr)
+print(autotr.expand(autotr.tree))
+print(autotr.verify())
