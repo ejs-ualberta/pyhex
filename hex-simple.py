@@ -238,11 +238,12 @@ class Position: # hex board
     return paths
       
         
-  def win_move(self, ptm): # assume neither player has won yet
+  def win_move(self, ptm, mustplay=None): # assume neither player has won yet
     optm = oppCH(ptm) 
     calls, win_set = 1, set()
     opt_win_threats = []
-    mustplay = self.live_cells(ptm)
+    if not mustplay:
+      mustplay = self.live_cells(ptm)
     mp = copy(mustplay)
     while len(mustplay) > 0:
       # Find first empty cell
@@ -307,15 +308,17 @@ class Position: # hex board
   def undo(self):  # pop last meta-move
     if not self.H:
       print('\n    original position,  nothing to undo\n')
+      return False
     else:
       self.brd = change_str(self.brd, self.H.pop()[1], ECH)
+    return True
 
-  def msg(self, ch):
+  def msg(self, ch, mp=None):
     if self.has_win('x'): return('x has won')
     elif self.has_win('o'): return('o has won')
     else:
       st = time.time()
-      wm, calls, vc = self.win_move(ch)
+      wm, calls, vc = self.win_move(ch, mp)
       out = '\n' + ch + '-to-move: '
       out += (ch if wm else oppCH(ch)) + ' wins' 
       out += (' ... ' if wm else ' ') + wm + '\n'
@@ -331,7 +334,8 @@ def printmenu():
   print('  x b2                          play x b 2')
   print('  o e3                          play o e 3')
   print('  . a2                           erase a 2')
-  print('  u                                   undo')
+  print('  u n                         undo n times')
+  print('  sam a1 ... xn    Solve assuming mustplay')
   print('  [return]                            quit')
 
 
@@ -353,7 +357,12 @@ def interact():
       except:
         pass
     elif cmd[0]=='u':
-      p.undo()
+      if len(cmd) <= 1:
+        p.undo()
+      else:
+        for i in range(int(cmd[1])):
+          if not p.undo():
+            break
     elif cmd[0]=='?':
       if len(cmd)>0:
         if cmd[1]=='x': 
@@ -362,6 +371,11 @@ def interact():
           print(p.msg('o'))
     elif cmd[0] == 'l':
       print(" ".join(sorted([point_to_alphanum(x, p.C) for x in p.live_cells(cmd[1])])))
+    elif cmd[0] == 'sam':
+      if cmd[1]=='x':
+        print(p.msg('x', mp=set(cmd[2:])))
+      elif cmd[1]=='o':
+        print(p.msg('o', mp=set(cmd[2:])))
     elif (cmd[0] in PTS):
       p.requestmove(cmd[0] + ' ' + ''.join(cmd[1:]))
 
