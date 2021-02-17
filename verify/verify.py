@@ -169,10 +169,16 @@ class AndOrAutoTree:
     def verify(self):
         # Check elusiveness first
         return self.is_elusive() and self.is_satisfying()
-        
-tr = "(and c2 (or c1 d1) (or (and b3 (or a4 b4)) (and d3 (or d2 c3) (or c4 d4))))"
+
+#4x4
+#tr = "(and c2 (or c1 d1) (or (and b3 (or a4 b4)) (and d3 (or d2 c3) (or c4 d4))))"
+tr = "(and d1 (or (and c2 (or (and b3 (or a4 b4)) (and d3 (or d2 c3) (or c4 d4)))) (and d2(or (and c4(or c3 d3))(and c3 (or b4 c4)) (and d3 (or c4 d4)) (and b3 (or a4 b4) (or c3 (and b2 (or b1 c1)))))) (and c3 (or c2 d2) (or b4 c4)) (and b3 (or a4 b4) (or c2 (and b2 (or b1 c1)))) (and a4 (or (and b2 (or a3 b3) (or b1 c1)) (and b2 (or a3 b3) (or c1 c2)) (and c3 (or c2 d2) (or b3 c4)) (and c2 (or b3 (and d3 (or c3 d2) (or c4 d4)))) (and b3 (or c2 (and b2 (or b1 c1)))) (and a3 (or (and a2 (or a1 b1)) (and b2 (or b1 c1)) (and b2 (or c1 c2))))))))"
+
+#3x3
 #tr = "(and b2 (or (and b1 (or a3 b3)) (and c1 (or a3 b3)) (and a3 (or b1 c1)) (and b3 (or b1 c1))))"
 #tr = "(and b2 (or b1 c1) (or a3 b3))"
+#tr = "(and a2 (or a1 b1) (or a3 (and c2 (or b2 c1) (or b3 c3))))"
+
 autotr = AndOrAutoTree(tr, 4, 4)
 print(autotr)
 print()

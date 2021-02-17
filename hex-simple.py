@@ -301,7 +301,7 @@ class Position: # hex board
     pretty += '  '  + ' ' * self.R + '+'
     for c in range(self.C):
       pretty += ' ' + paint(BCH)
-    pretty += '+\n'
+    pretty += ' +\n'
     print(pretty)
 
   def undo(self):  # pop last meta-move
@@ -325,13 +325,14 @@ class Position: # hex board
 
 
 def printmenu():
-  print('  h             help menu')
-  print('  z        show the board')
-  print('  x b2         play x b 2')
-  print('  o e3         play o e 3')
-  print('  . a2          erase a 2')
-  print('  u                  undo')
-  print('  [return]           quit')
+  print('  h                              help menu')
+  print('  ? x|o      solve the position for x or o')
+  print('  z                         show the board')
+  print('  x b2                          play x b 2')
+  print('  o e3                          play o e 3')
+  print('  . a2                           erase a 2')
+  print('  u                                   undo')
+  print('  [return]                            quit')
 
 
 def interact():
