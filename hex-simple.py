@@ -94,6 +94,8 @@ class Position: # hex board
       self.CELLS = (12,8,16,7,17,6,18,11,13,4,20,3,21,2,22,15,9,10,14,5,19,1,23,0,24)
     else: self.CELLS = [j for j in range(self.n)]  # this order terrible for solving
 
+    self.connection_graphs = {BCH:self.get_connections(BCH), WCH:self.get_connections(WCH)}
+
   def requestmove(self, cmd):
     c = cmd
     parseok, cmd = False, cmd.split()
@@ -117,26 +119,17 @@ class Position: # hex board
     if ch != ECH and self.brd[where] != ECH:
       print('\n  sorry, position occupied')
       return ret
+    self.move(ch, where)
+
+  def move(self, ch, where):
     self.brd = change_str(self.brd, where, ch)
     if ch != ECH:
-      self.H.append((ch, where))
+      self.H.append((ch, where, self.connection_graphs))
+    self.connection_graphs = {BCH:self.get_connections(BCH), WCH:self.get_connections(WCH)}
 
-  def has_win(self, who):
-    set1, set2 = (self.TOP_ROW, self.BTM_ROW) if who == BCH else (self.LFT_COL, self.RGT_COL)
-    Q, seen = deque([]), set()
-    for c in set1:
-      if self.brd[c] == who: 
-        Q.append(c)
-        seen.add(c)
-    while len(Q) > 0:
-      c = Q.popleft()
-      if c in set2: 
-        return True
-      for d in self.nbrs[c]:
-        if self.brd[d] == who and d not in seen:
-          Q.append(d)
-          seen.add(d)
-    return False
+  def has_win(self, ptm):
+    connections, side1, side2 = self.connection_graphs[ptm]
+    return side1 in connections[side2]
 
   def connected_cells(self, pt, ptm, side1, side2):
     set1, set2 = (self.TOP_ROW, self.BTM_ROW) if ptm == BCH else (self.LFT_COL, self.RGT_COL)
@@ -159,7 +152,7 @@ class Position: # hex board
             reachable.add(n)
     return seen, reachable
 
-  def live_cells(self, ptm):
+  def get_connections(self, ptm):
     set1, set2 = (self.TOP_ROW, self.BTM_ROW) if ptm == BCH else (self.LFT_COL, self.RGT_COL)
     connections = {}
 
@@ -194,7 +187,10 @@ class Position: # hex board
           cr = connections[c].union(r)
           cr.remove(c)
           connections[c] = cr
+    return connections, side1, side2
 
+  def live_cells(self, ptm):
+    connections, side1, side2 = self.connection_graphs[ptm]
     paths = self.induced_paths_from_to(connections, set(), side1, side2)
     live = set()
     for p in paths:
@@ -236,22 +232,60 @@ class Position: # hex board
         paths.add((node,) + p)
     visited.remove(node)
     return paths
-      
-        
-  def win_move(self, ptm, mustplay=None): # assume neither player has won yet
+
+  def spft(self, connections, node, end):
+    parents = [[] for i in range(len(self.brd) + 2)]
+    dists = [math.inf for i in range(len(self.brd)+2)]
+    q = deque([node])
+    dists[node] = 0
+    while q:
+      n = q.popleft()
+      if n == end:
+        break
+      for n1 in connections[n]:
+        d = dists[n] + 1
+        if dists[n1] > d:
+          dists[n1] = d
+          parents[n1] = [n]
+          q.append(n1)
+        elif dists[n1] == d:
+          parents[n1].append(n)
+
+    in_sps = set()
+    seen = {}
+    q = deque([[end]])
+    while q:
+      p = q.popleft()
+      for v in p:
+        if v not in seen:
+          seen[v] = 1
+          in_sps.add(v)
+          q.append(parents[v])
+        else:
+          seen[v] += 1
+
+    seen.pop(node)
+    seen.pop(end)
+    counts = sorted([(seen[key], key) for key in seen.keys()])
+    return [k[1] for k in counts]
+
+  def win_move(self, ptm): # assume neither player has won yet
     optm = oppCH(ptm) 
     calls, win_set = 1, set()
     opt_win_threats = []
-    if not mustplay:
-      mustplay = self.live_cells(ptm)
+    mustplay = self.live_cells(ptm)
     mp = copy(mustplay)
     while len(mustplay) > 0:
       # Find first empty cell
-      for move in self.CELLS:
+      #TODO: make this better
+      if self.brd.count(ECH) < len(self.brd)-1:
+        cells = self.spft(*self.connection_graphs[ptm]) + list(self.CELLS)
+      else:
+        cells = self.CELLS
+      for move in cells:
         if move in mustplay: break
 
-      self.brd = change_str(self.brd, move, ptm)
-      self.H.append((ptm, move))
+      self.move(ptm, move)
 
       if self.has_win(ptm):
         pt = point_to_alphanum(move, self.C)
@@ -308,17 +342,16 @@ class Position: # hex board
   def undo(self):  # pop last meta-move
     if not self.H:
       print('\n    original position,  nothing to undo\n')
-      return False
     else:
-      self.brd = change_str(self.brd, self.H.pop()[1], ECH)
-    return True
+      ch, where, self.connection_graphs = self.H.pop()
+      self.brd = change_str(self.brd, where, ECH)
 
-  def msg(self, ch, mp=None):
+  def msg(self, ch):
     if self.has_win('x'): return('x has won')
     elif self.has_win('o'): return('o has won')
     else:
       st = time.time()
-      wm, calls, vc = self.win_move(ch, mp)
+      wm, calls, vc = self.win_move(ch)
       out = '\n' + ch + '-to-move: '
       out += (ch if wm else oppCH(ch)) + ' wins' 
       out += (' ... ' if wm else ' ') + wm + '\n'
@@ -334,8 +367,7 @@ def printmenu():
   print('  x b2                          play x b 2')
   print('  o e3                          play o e 3')
   print('  . a2                           erase a 2')
-  print('  u n                         undo n times')
-  print('  sam a1 ... xn    Solve assuming mustplay')
+  print('  u                                   undo')
   print('  [return]                            quit')
 
 
@@ -357,12 +389,7 @@ def interact():
       except:
         pass
     elif cmd[0]=='u':
-      if len(cmd) <= 1:
-        p.undo()
-      else:
-        for i in range(int(cmd[1])):
-          if not p.undo():
-            break
+      p.undo()
     elif cmd[0]=='?':
       if len(cmd)>0:
         if cmd[1]=='x': 
@@ -371,11 +398,8 @@ def interact():
           print(p.msg('o'))
     elif cmd[0] == 'l':
       print(" ".join(sorted([point_to_alphanum(x, p.C) for x in p.live_cells(cmd[1])])))
-    elif cmd[0] == 'sam':
-      if cmd[1]=='x':
-        print(p.msg('x', mp=set(cmd[2:])))
-      elif cmd[1]=='o':
-        print(p.msg('o', mp=set(cmd[2:])))
+    elif cmd[0] == "spft":
+      p.spft(*p.connection_graphs[cmd[1]])
     elif (cmd[0] in PTS):
       p.requestmove(cmd[0] + ' ' + ''.join(cmd[1:]))
 
