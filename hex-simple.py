@@ -296,7 +296,7 @@ class Position: # hex board
           score[i] += 1
     spft = self.spft(*self.connection_graphs[ptm])
     for i in spft:
-      score[i] += 3
+      score[i] += 5
     counts = sorted([(score[i], i) for i in range(len(self.brd))], reverse=True)
     if show_ranks:
       print(counts)
