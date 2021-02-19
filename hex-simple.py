@@ -251,7 +251,6 @@ class Position: # hex board
         elif dists[n1] == d:
           parents[n1].append(n)
 
-    in_sps = set()
     seen = {}
     q = deque([[end]])
     while q:
@@ -259,15 +258,44 @@ class Position: # hex board
       for v in p:
         if v not in seen:
           seen[v] = 1
-          in_sps.add(v)
-          q.append(parents[v])
         else:
           seen[v] += 1
+        q.append(parents[v])
 
     seen.pop(node)
     seen.pop(end)
     counts = sorted([(seen[key], key) for key in seen.keys()])
     return [k[1] for k in counts]
+
+  def rank_moves_by_vc(self, ptm):
+    set1, set2 = (self.TOP_ROW, self.BTM_ROW) if ptm == BCH else (self.LFT_COL, self.RGT_COL)
+    score = [0] * len(self.brd)
+    for i in range(len(self.brd)):
+      if self.brd[i] != ECH:
+        continue
+      poss_vcs = set()
+      for c in self.nbrs[i]:
+        if self.brd[c] != ECH:
+          continue
+        for c1 in self.nbrs[c]:
+          if self.brd[c1] != ECH:
+            continue
+          if c1 in self.nbrs[i]:
+            poss_vcs.add(tuple(sorted((c, c1))))
+      for pvc in poss_vcs:
+        s = set(self.nbrs[pvc[0]]).intersection(set(self.nbrs[pvc[1]]))
+        s.remove(i)
+        if not s:
+          if (pvc[0] in set1 and pvc[1] in set1) or (pvc[0] in set2 and pvc[1] in set2):
+            score[i] += 1
+        elif self.brd[list(s)[0]] == ptm:
+          score[i] += 1
+    spft = self.spft(*self.connection_graphs[ptm])
+    for i in spft:
+      score[i] += 1
+    counts = sorted([(score[i], i) for i in range(len(self.brd))], reverse=True)
+    return [i[1] for i in counts]
+      
 
   def win_move(self, ptm): # assume neither player has won yet
     optm = oppCH(ptm) 
@@ -279,13 +307,14 @@ class Position: # hex board
       # Find first empty cell
       #TODO: make this better
       if self.brd.count(ECH) < len(self.brd)-1:
-        cells = self.spft(*self.connection_graphs[ptm]) + list(self.CELLS)
+        cells = self.rank_moves_by_vc(ptm)
       else:
         cells = self.CELLS
       for move in cells:
         if move in mustplay: break
 
       self.move(ptm, move)
+      #self.showboard()
 
       if self.has_win(ptm):
         pt = point_to_alphanum(move, self.C)
@@ -389,7 +418,11 @@ def interact():
       except:
         pass
     elif cmd[0]=='u':
-      p.undo()
+      if len(cmd) > 1:
+        for i in range(int(cmd[1])):
+          p.undo()
+      else:
+        p.undo()
     elif cmd[0]=='?':
       if len(cmd)>0:
         if cmd[1]=='x': 
@@ -398,8 +431,8 @@ def interact():
           print(p.msg('o'))
     elif cmd[0] == 'l':
       print(" ".join(sorted([point_to_alphanum(x, p.C) for x in p.live_cells(cmd[1])])))
-    elif cmd[0] == "spft":
-      p.spft(*p.connection_graphs[cmd[1]])
+    elif cmd[0] == "rm":
+      p.rank_moves_by_vc(cmd[1])
     elif (cmd[0] in PTS):
       p.requestmove(cmd[0] + ' ' + ''.join(cmd[1:]))
 
