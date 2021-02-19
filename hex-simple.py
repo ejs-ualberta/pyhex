@@ -124,7 +124,7 @@ class Position: # hex board
   def move(self, ch, where):
     self.brd = change_str(self.brd, where, ch)
     if ch != ECH:
-      self.H.append((ch, where, self.connection_graphs))
+      self.H.append((ch, where, self.connection_graphs)) 
     self.connection_graphs = {BCH:self.get_connections(BCH), WCH:self.get_connections(WCH)}
 
   def has_win(self, ptm):
@@ -267,8 +267,9 @@ class Position: # hex board
     counts = sorted([(seen[key], key) for key in seen.keys()])
     return [k[1] for k in counts]
 
-  def rank_moves_by_vc(self, ptm):
+  def rank_moves_by_vc(self, ptm, show_ranks=False):
     set1, set2 = (self.TOP_ROW, self.BTM_ROW) if ptm == BCH else (self.LFT_COL, self.RGT_COL)
+    optm = oppCH(ptm)
     score = [0] * len(self.brd)
     for i in range(len(self.brd)):
       if self.brd[i] != ECH:
@@ -280,9 +281,12 @@ class Position: # hex board
         for c1 in self.nbrs[c]:
           if self.brd[c1] != ECH:
             continue
+          elif c1 == i: continue
           if c1 in self.nbrs[i]:
             poss_vcs.add(tuple(sorted((c, c1))))
       for pvc in poss_vcs:
+        if self.brd[pvc[0]] == ECH and self.brd[pvc[1]] == ECH:
+          score[i] += 1
         s = set(self.nbrs[pvc[0]]).intersection(set(self.nbrs[pvc[1]]))
         s.remove(i)
         if not s:
@@ -292,8 +296,10 @@ class Position: # hex board
           score[i] += 1
     spft = self.spft(*self.connection_graphs[ptm])
     for i in spft:
-      score[i] += 1
+      score[i] += 3
     counts = sorted([(score[i], i) for i in range(len(self.brd))], reverse=True)
+    if show_ranks:
+      print(counts)
     return [i[1] for i in counts]
       
 
@@ -315,7 +321,8 @@ class Position: # hex board
 
       self.move(ptm, move)
       #self.showboard()
-
+      #input()
+      
       if self.has_win(ptm):
         pt = point_to_alphanum(move, self.C)
         self.undo()
@@ -432,7 +439,7 @@ def interact():
     elif cmd[0] == 'l':
       print(" ".join(sorted([point_to_alphanum(x, p.C) for x in p.live_cells(cmd[1])])))
     elif cmd[0] == "rm":
-      p.rank_moves_by_vc(cmd[1])
+      p.rank_moves_by_vc(cmd[1], show_ranks=True)
     elif (cmd[0] in PTS):
       p.requestmove(cmd[0] + ' ' + ''.join(cmd[1:]))
 
