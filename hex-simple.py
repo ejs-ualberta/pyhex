@@ -301,21 +301,21 @@ class Position: # hex board
     if show_ranks:
       print(counts)
     return [i[1] for i in counts]
-      
+
+  def midpoint(self):
+    x = self.C // 2
+    y = self.R // 2 + self.R % 2 - 1
+    return coord_to_point(y, x, self.C)
 
   def win_move(self, ptm): # assume neither player has won yet
     optm = oppCH(ptm) 
     calls, win_set = 1, set()
     opt_win_threats = []
-    mustplay = self.live_cells(ptm)
+    mustplay = self.live_cells(ptm) #[i for i in range(len(self.brd)) if self.brd[i] == ECH]
     mp = copy(mustplay)
     while len(mustplay) > 0:
+      cells = [self.midpoint()] + self.rank_moves_by_vc(ptm) # self.CELLS
       # Find first empty cell
-      #TODO: make this better
-      if self.brd.count(ECH) < len(self.brd)-1:
-        cells = self.rank_moves_by_vc(ptm)
-      else:
-        cells = self.CELLS
       for move in cells:
         if move in mustplay: break
 
@@ -436,10 +436,10 @@ def interact():
           print(p.msg('x'))
         elif cmd[1]=='o': 
           print(p.msg('o'))
-    elif cmd[0] == 'l':
-      print(" ".join(sorted([point_to_alphanum(x, p.C) for x in p.live_cells(cmd[1])])))
-    elif cmd[0] == "rm":
-      p.rank_moves_by_vc(cmd[1], show_ranks=True)
+    #elif cmd[0] == 'l':
+      #print(" ".join(sorted([point_to_alphanum(x, p.C) for x in p.live_cells(cmd[1])])))
+    #elif cmd[0] == "rm":
+      #p.rank_moves_by_vc(cmd[1], show_ranks=True)
     elif (cmd[0] in PTS):
       p.requestmove(cmd[0] + ' ' + ''.join(cmd[1:]))
 
