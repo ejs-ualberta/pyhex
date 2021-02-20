@@ -378,9 +378,11 @@ class Position: # hex board
   def undo(self):  # pop last meta-move
     if not self.H:
       print('\n    original position,  nothing to undo\n')
+      return False
     else:
       ch, where, self.connection_graphs = self.H.pop()
       self.brd = change_str(self.brd, where, ECH)
+    return True
 
   def msg(self, ch):
     if self.has_win('x'): return('x has won')
@@ -427,7 +429,7 @@ def interact():
     elif cmd[0]=='u':
       if len(cmd) > 1:
         for i in range(int(cmd[1])):
-          p.undo()
+          if not p.undo(): break
       else:
         p.undo()
     elif cmd[0]=='?':
