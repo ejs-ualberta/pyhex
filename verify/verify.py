@@ -110,29 +110,33 @@ class AndOrAutoTree:
         return r
 
 
-    def _is_satisfying(self, board, nd):
-        if nd.op == conj:
-            board.requestmove(BCH + ' ' + nd.move)
-        if not nd.children:
+    def _is_satisfying(self, board, root):
+        board.requestmove(BCH + ' ' + root.move)
+        #board.showboard()
+        if not root.children:
             w = board.has_win(BCH)
             if not w:
                 print("Not satisfying:")
                 board.showboard()
             board.undo()
             return w
-        for ch in nd.children:
-            s = self._is_satisfying(board, ch)
-            if not s:
-                return False
-        if nd.op == conj:
-            board.undo()
+
+        for i in range(len(root.children)):
+            cch = root.children[i].children
+            for c in cch:
+                newc = copy(c)
+                newc.children = copy(c.children)
+                newc.children.extend(root.children[:i] + root.children[i+1:])
+                if not self._is_satisfying(board, newc):
+                    board.undo()
+                    return False
+
+        board.undo()
         return True
 
 
     def is_satisfying(self):
-        root = self.expand(self.tree)
-        board = Position(self.rows, self.cols)
-        return self._is_satisfying(board, root)
+        return self._is_satisfying(Position(self.rows, self.cols), self.tree)
 
 
     def is_elusive(self, root=None):
@@ -171,8 +175,8 @@ class AndOrAutoTree:
         return self.is_elusive() and self.is_satisfying()
 
 #4x4
-#tr = "(and c2 (or c1 d1) (or (and b3 (or a4 b4)) (and d3 (or d2 c3) (or c4 d4))))"
-tr = "(and d1 (or (and c3 (or d2 c2) (b4 c4)) (and b3 (or a4 b4) (or c2 (and b2 (or b1 c1)))) (and d2 (or (and d3 (or c4 d4)) (and b3 (or a4 b4) (or c3 (and b2 (or b1 c1)))))) (and d3 (or c4 d4) (or d2 (and b3 (or a4 c3) (or c2 (and b2 (or b1 c1))))))))"
+tr = "(and c2 (or c1 d1) (or (and b3 (or a4 b4)) (and d3 (or d2 c3) (or c4 d4))))"
+#tr = "(and d1 (or (and c3 (or d2 c2) (b4 c4)) (and b3 (or a4 b4) (or c2 (and b2 (or b1 c1)))) (and d2 (or (and d3 (or c4 d4)) (and b3 (or a4 b4) (or c3 (and b2 (or b1 c1)))))) (and d3 (or c4 d4) (or d2 (and b3 (or a4 c3) (or c2 (and b2 (or b1 c1))))))))"
 
 #3x3
 #tr = "(and b2 (or (and b1 (or a3 b3)) (and c1 (or a3 b3)) (and a3 (or b1 c1)) (and b3 (or b1 c1))))"
@@ -180,8 +184,8 @@ tr = "(and d1 (or (and c3 (or d2 c2) (b4 c4)) (and b3 (or a4 b4) (or c2 (and b2 
 #tr = "(and a2 (or a1 b1) (or a3 (and c2 (or b2 c1) (or b3 c3))))"
 
 autotr = AndOrAutoTree(tr, 4, 4)
-print(autotr)
-print()
-print(autotr.expand(autotr.tree))
-print()
+#print(autotr)
+#print()
+#print(autotr.expand(autotr.tree))
+#print()
 print(autotr.verify())
