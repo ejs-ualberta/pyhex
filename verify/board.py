@@ -162,7 +162,7 @@ class Position: # hex board
     pretty += '  '  + ' ' * self.R + '+'
     for c in range(self.C):
       pretty += ' ' + paint(BCH)
-    pretty += '+\n'
+    pretty += ' +\n'
     print(pretty)
 
 

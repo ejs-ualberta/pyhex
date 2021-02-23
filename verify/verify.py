@@ -139,11 +139,9 @@ class AndOrAutoTree:
         return self._is_satisfying(Position(self.rows, self.cols), self.tree)
 
 
-    def is_elusive(self, root=None):
-        if not root:
-            root = self.tree
+    def _is_elusive(self, root):
         for ch in root.children:
-            if not self.is_elusive(ch):
+            if not self._is_elusive(ch):
                 return False
 
         if root.op == conj:
@@ -169,14 +167,19 @@ class AndOrAutoTree:
                 print(root)
                 return False
         return True
-            
+
+
+    def is_elusive(self):
+        return self._is_elusive(self.tree)
+
+
     def verify(self):
         # Check elusiveness first
         return self.is_elusive() and self.is_satisfying()
 
 #4x4
-tr = "(and c2 (or c1 d1) (or (and b3 (or a4 b4)) (and d3 (or d2 c3) (or c4 d4))))"
-#tr = "(and d1 (or (and c3 (or d2 c2) (b4 c4)) (and b3 (or a4 b4) (or c2 (and b2 (or b1 c1)))) (and d2 (or (and d3 (or c4 d4)) (and b3 (or a4 b4) (or c3 (and b2 (or b1 c1)))))) (and d3 (or c4 d4) (or d2 (and b3 (or a4 c3) (or c2 (and b2 (or b1 c1))))))))"
+#tr = "(and c2 (or c1 d1) (or (and b3 (or a4 b4)) (and d3 (or d2 c3) (or c4 d4))))"
+tr = "(and d1 (or (and c3 (or d2 c2) (b4 c4)) (and b3 (or a4 b4) (or c2 (and b2 (or b1 c1)))) (and d2 (or (and d3 (or c4 d4)) (and b3 (or a4 b4) (or c3 (and b2 (or b1 c1)))))) (and d3 (or c4 d4) (or d2 (and b3 (or a4 c3) (or c2 (and b2 (or b1 c1))))))))"
 
 #3x3
 #tr = "(and b2 (or (and b1 (or a3 b3)) (and c1 (or a3 b3)) (and a3 (or b1 c1)) (and b3 (or b1 c1))))"
