@@ -94,8 +94,7 @@ class Position: # hex board
 
   def requestmove(self, cmd):
     c = cmd
-    parseok, cmd = False, cmd.split()
-    ret = ''
+    ret, cmd = False, cmd.split()
     if len(cmd) != 2:
       print('invalid command')
       return ret
@@ -118,6 +117,7 @@ class Position: # hex board
     self.brd = change_str(self.brd, where, ch)
     if ch != ECH:
       self.H.append((ch, where))
+    return True
 
   def has_win(self, who):
     set1, set2 = (self.TOP_ROW, self.BTM_ROW) if who == BCH else (self.LFT_COL, self.RGT_COL)

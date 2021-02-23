@@ -98,8 +98,7 @@ class Position: # hex board
 
   def requestmove(self, cmd):
     c = cmd
-    parseok, cmd = False, cmd.split()
-    ret = ''
+    ret, cmd = False, cmd.split()
     if len(cmd) != 2:
       print('invalid command')
       return ret
@@ -120,6 +119,7 @@ class Position: # hex board
       print('\n  sorry, position occupied')
       return ret
     self.move(ch, where)
+    return True
 
   def move(self, ch, where):
     self.brd = change_str(self.brd, where, ch)

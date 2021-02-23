@@ -111,7 +111,8 @@ class AndOrAutoTree:
 
 
     def _is_satisfying(self, board, root):
-        board.requestmove(BCH + ' ' + root.move)
+        if not board.requestmove(BCH + ' ' + root.move):
+            return False
         #board.showboard()
         if not root.children:
             w = board.has_win(BCH)
