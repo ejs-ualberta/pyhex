@@ -132,6 +132,8 @@ class Position: # hex board
     return side1 in connections[side2]
 
   def connected_cells(self, pt, ptm, side1, side2):
+    # Find all ptm-occupied cells connected to a particular cell. Cells are connected if
+    # there is a path between them of only ptm cells.
     set1, set2 = (self.TOP_ROW, self.BTM_ROW) if ptm == BCH else (self.LFT_COL, self.RGT_COL)
     q, seen, reachable = deque([]), set(), set()
     if self.brd[pt] == ptm:
@@ -234,6 +236,7 @@ class Position: # hex board
     return paths
 
   def spft(self, connections, node, end):
+    # Find all shortest paths between two nodes using modified bfs
     parents = [[] for i in range(len(self.brd) + 2)]
     dists = [math.inf for i in range(len(self.brd)+2)]
     q = deque([node])
@@ -264,10 +267,13 @@ class Position: # hex board
 
     seen.pop(node)
     seen.pop(end)
-    counts = sorted([(seen[key], key) for key in seen.keys()])
-    return [k[1] for k in counts]
+    #counts = sorted([(seen[key], key) for key in seen.keys()])
+    #return [k[1] for k in counts]
+    return seen.keys()
 
   def rank_moves_by_vc(self, ptm, show_ranks=False):
+    # Assign a score to each node based on whether it is virtually connected to other nodes and
+    # on whether it is in a shortest winning path
     set1, set2 = (self.TOP_ROW, self.BTM_ROW) if ptm == BCH else (self.LFT_COL, self.RGT_COL)
     optm = oppCH(ptm)
     score = [0] * len(self.brd)
@@ -311,7 +317,7 @@ class Position: # hex board
     optm = oppCH(ptm) 
     calls, win_set = 1, set()
     opt_win_threats = []
-    mustplay = self.live_cells(ptm) #[i for i in range(len(self.brd)) if self.brd[i] == ECH]
+    mustplay = set([i for i in range(len(self.brd)) if self.brd[i] == ECH])
     mp = copy(mustplay)
     while len(mustplay) > 0:
       cells = [self.midpoint()] + self.rank_moves_by_vc(ptm) # self.CELLS
