@@ -72,6 +72,51 @@ colorend, textcolor = escape_ch + '0m', escape_ch + '0;37m'
 stonecolors         = (textcolor, escape_ch + '0;35m', escape_ch + '0;32m')
 
 
+class Pattern:
+  def __init__(self, offsets, chars, rows, cols):
+    self.offsets = offsets
+    self.deltas = [self.offsets]
+    self.chars = chars;
+    self.R = rows
+    self.C = cols
+
+    prev = self.deltas[-1]
+    for i in range(6):
+      self.deltas.append([cubic_rotate_60_cc(v) for v in prev])
+      prev = self.deltas[-1]
+
+  def matches(self, board, pt):
+    vec = point_to_cubic(pt, self.C)
+    for rot in self.deltas:
+      is_c = True
+      for i in range(len(rot)):
+        c = vec + rot[i]
+        x, z = c[0], c[2]
+        if x < 0 or z < 0 or x > self.C - 1 or z > self.R - 1:
+          if self.on_correct_edge(c, self.chars[i]):
+            continue
+          is_c = False
+          break
+          continue
+        ch = board[cubic_to_point(c, self.C)]
+        if ch != self.chars[i]:
+          is_c = False
+          break
+      if is_c:
+        return True
+    return False
+
+  def on_correct_edge(self, vec, ch):
+    x = vec[0]
+    z = vec[2]
+    if ch == BCH:
+      if 0 <= x and x < self.C:
+        return True
+    elif ch == WCH:
+      if 0 <= z and z < self.R:
+        return True
+    return False
+
 class Position: # hex board 
   def __init__(self, rows, cols):
     self.R, self.C, self.n = rows, cols, rows*cols
@@ -107,6 +152,26 @@ class Position: # hex board
     #else: self.CELLS = [j for j in range(self.n)]  # this order terrible for solving
 
     self.connection_graphs = {BCH:self.get_connections(BCH), WCH:self.get_connections(WCH)}
+    self.patterns = [
+      #  x x
+      # x *
+      #    o
+      Pattern([np.array([0, 0, 0]), np.array([-1, 1, 0]), np.array([0, 1, -1]), np.array([1, 0, -1]), np.array([0, -1, 1])],
+              [ECH, BCH, BCH, BCH, WCH], self.R, self.C),
+      #  o o
+      # o *
+      #    x
+      Pattern([np.array([0, 0, 0]), np.array([-1, 1, 0]), np.array([0, 1, -1]), np.array([1, 0, -1]), np.array([0, -1, 1])],
+              [ECH, WCH, WCH, WCH, BCH], self.R, self.C),
+      #  x x
+      # x * x
+      Pattern([np.array([0, 0, 0]), np.array([-1, 1, 0]), np.array([0, 1, -1]), np.array([1, 0, -1]), np.array([1, -1, 0])],
+              [ECH, BCH, BCH, BCH, BCH], self.R, self.C),
+      #  o o
+      # o * o
+      Pattern([np.array([0, 0, 0]), np.array([-1, 1, 0]), np.array([0, 1, -1]), np.array([1, 0, -1]), np.array([1, -1, 0])],
+              [ECH, WCH, WCH, WCH, WCH], self.R, self.C),
+    ]
 
   def requestmove(self, cmd):
     c = cmd
@@ -328,46 +393,11 @@ class Position: # hex board
   def inferior(self, ptm):
     # Uses patterns to find some inferior cells whether they be dead or captured by the opponent
     # Does not find all dead/captured cells.
-
-    def dc1(board, cell, ptm, optm):
-      # Check whether star is a dead cell
-      #  x x
-      # x * x
-      if board[cell] != ECH:
-        return set()
-      vec = point_to_cubic(cell, self.C)
-      deltas = [np.array([-1, 1, 0]), np.array([0, 1, -1]), np.array([1, 0, -1]), np.array([1, -1, 0])]
-      # Try all rotations
-      for i in range(6):
-        player = None
-        ic = True
-        for d in deltas:
-          c = vec + d
-          x = c[0]
-          z = c[2]
-          if x < 0 or z < 0 or x > self.R - 1 or z > self.C - 1:
-            ic = False
-            break
-          ch = board[cubic_to_point(c, self.C)]
-          if ch == ECH:
-            ic = False
-            break
-          if not player:
-            player = ch
-          if ch != player:
-            ic = False
-            break
-        if ic:
-          return {cell}
-        deltas = [cubic_rotate_60_cc(v) for v in deltas]
-      return set()
-
-    optm = oppCH(ptm)
     inf_cs = set()
-    patterns = [dc1]
     for i in range(len(self.brd)):
-      for fn in patterns:
-        inf_cs = inf_cs.union(fn(self.brd, i, ptm, optm))
+      for pat in self.patterns:
+        if pat.matches(self.brd, i):
+          inf_cs.add(i)
     return inf_cs
 
   def win_move(self, ptm): # assume neither player has won yet
@@ -375,7 +405,7 @@ class Position: # hex board
     calls, win_set = 1, set()
     opt_win_threats = []
     #mustplay = self.live_cells(ptm) # Faster when using self.CELLS but not when using heuristic function
-    mustplay = set([i for i in range(len(self.brd)) if self.brd[i] == ECH]) - self.inferior(ptm)
+    mustplay = set([i for i in range(len(self.brd)) if self.brd[i] == ECH])# - self.inferior(ptm)
     mp = copy(mustplay)
     while len(mustplay) > 0:
       cells = [self.midpoint()] + self.rank_moves_by_vc(ptm) # self.CELLS
