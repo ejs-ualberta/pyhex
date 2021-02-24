@@ -11,6 +11,7 @@ from copy import copy
 import time
 import math
 from collections import deque
+import numpy as np
 
 """
 points on the board
@@ -19,6 +20,7 @@ points on the board
 PTS = '.xo'
 EMPTY, BLACK, WHITE = 0, 1, 2
 ECH, BCH, WCH = PTS[EMPTY], PTS[BLACK], PTS[WHITE]
+
 
 def oppCH(ch): 
   if ch== BCH: return WCH
@@ -32,6 +34,16 @@ index positions for     board:    0 1 2       <- row 0
                                    3 4 5       <- row 1
                                     6 7 8       <- row 2
 """
+
+def point_to_cubic(pt, C):
+  z, x = divmod(pt, C)
+  return np.array([x, -x-z, z])
+
+def cubic_to_point(vec, C):
+  return vec[2] * C + vec[0]
+
+def cubic_rotate_60_cc(vec):
+  return np.array([-vec[1], -vec[2], -vec[0]])
 
 def coord_to_point(r, c, C): 
   return c + r*C
@@ -87,12 +99,12 @@ class Position: # hex board
       self.TOP_ROW.add(coord_to_point(0, c, self.C))
       self.BTM_ROW.add(coord_to_point(self.R-1, c, self.C))
 
-    if self.R == 3 and self.C == 3: self.CELLS = (4,2,6,3,5,1,7,0,8)
-    elif self.R == 3 and self.C == 4: self.CELLS = (5,6,4,7,2,9,3,8,1,10,0,11)
-    elif self.R == 4 and self.C == 4: self.CELLS = (6,9,3,12,2,13,5,10,8,7,1,14,4,11,0,15)
-    elif self.R == 5 and self.C == 5: 
-      self.CELLS = (12,8,16,7,17,6,18,11,13,4,20,3,21,2,22,15,9,10,14,5,19,1,23,0,24)
-    else: self.CELLS = [j for j in range(self.n)]  # this order terrible for solving
+    #if self.R == 3 and self.C == 3: self.CELLS = (4,2,6,3,5,1,7,0,8)
+    #elif self.R == 3 and self.C == 4: self.CELLS = (5,6,4,7,2,9,3,8,1,10,0,11)
+    #elif self.R == 4 and self.C == 4: self.CELLS = (6,9,3,12,2,13,5,10,8,7,1,14,4,11,0,15)
+    #elif self.R == 5 and self.C == 5: 
+    #  self.CELLS = (12,8,16,7,17,6,18,11,13,4,20,3,21,2,22,15,9,10,14,5,19,1,23,0,24)
+    #else: self.CELLS = [j for j in range(self.n)]  # this order terrible for solving
 
     self.connection_graphs = {BCH:self.get_connections(BCH), WCH:self.get_connections(WCH)}
 
@@ -235,7 +247,7 @@ class Position: # hex board
     visited.remove(node)
     return paths
 
-  def spft(self, connections, node, end):
+  def shortest_paths_from_to(self, connections, node, end):
     # Find all shortest paths between two nodes using modified bfs
     parents = [[] for i in range(len(self.brd) + 2)]
     dists = [math.inf for i in range(len(self.brd)+2)]
@@ -272,7 +284,7 @@ class Position: # hex board
     return seen.keys()
 
   def rank_moves_by_vc(self, ptm, show_ranks=False):
-    # Assign a score to each node based on whether it is virtually connected to other nodes and
+    # Assign a score to each node based on whether it is virtually connected to other nodes/sides and
     # on whether it is in a shortest winning path
     set1, set2 = (self.TOP_ROW, self.BTM_ROW) if ptm == BCH else (self.LFT_COL, self.RGT_COL)
     optm = oppCH(ptm)
@@ -300,7 +312,7 @@ class Position: # hex board
             score[i] += 1
         elif self.brd[list(s)[0]] == ptm:
           score[i] += 1
-    spft = self.spft(*self.connection_graphs[ptm])
+    spft = self.shortest_paths_from_to(*self.connection_graphs[ptm])
     for i in spft:
       score[i] += 5
     counts = sorted([(score[i], i) for i in range(len(self.brd))], reverse=True)
@@ -313,11 +325,57 @@ class Position: # hex board
     y = self.R // 2 + self.R % 2 - 1
     return coord_to_point(y, x, self.C)
 
+  def inferior(self, ptm):
+    # Uses patterns to find some inferior cells whether they be dead or captured by the opponent
+    # Does not find all dead/captured cells.
+
+    def dc1(board, cell, ptm, optm):
+      # Check whether star is a dead cell
+      #  x x
+      # x * x
+      if board[cell] != ECH:
+        return set()
+      vec = point_to_cubic(cell, self.C)
+      deltas = [np.array([-1, 1, 0]), np.array([0, 1, -1]), np.array([1, 0, -1]), np.array([1, -1, 0])]
+      # Try all rotations
+      for i in range(6):
+        player = None
+        ic = True
+        for d in deltas:
+          c = vec + d
+          x = c[0]
+          z = c[2]
+          if x < 0 or z < 0 or x > self.R - 1 or z > self.C - 1:
+            ic = False
+            break
+          ch = board[cubic_to_point(c, self.C)]
+          if ch == ECH:
+            ic = False
+            break
+          if not player:
+            player = ch
+          if ch != player:
+            ic = False
+            break
+        if ic:
+          return {cell}
+        deltas = [cubic_rotate_60_cc(v) for v in deltas]
+      return set()
+
+    optm = oppCH(ptm)
+    inf_cs = set()
+    patterns = [dc1]
+    for i in range(len(self.brd)):
+      for fn in patterns:
+        inf_cs = inf_cs.union(fn(self.brd, i, ptm, optm))
+    return inf_cs
+
   def win_move(self, ptm): # assume neither player has won yet
     optm = oppCH(ptm) 
     calls, win_set = 1, set()
     opt_win_threats = []
-    mustplay = set([i for i in range(len(self.brd)) if self.brd[i] == ECH])
+    #mustplay = self.live_cells(ptm) # Faster when using self.CELLS but not when using heuristic function
+    mustplay = set([i for i in range(len(self.brd)) if self.brd[i] == ECH]) - self.inferior(ptm)
     mp = copy(mustplay)
     while len(mustplay) > 0:
       cells = [self.midpoint()] + self.rank_moves_by_vc(ptm) # self.CELLS
@@ -448,6 +506,8 @@ def interact():
       #print(" ".join(sorted([point_to_alphanum(x, p.C) for x in p.live_cells(cmd[1])])))
     #elif cmd[0] == "rm":
       #p.rank_moves_by_vc(cmd[1], show_ranks=True)
+    elif cmd[0] == "i":
+      print(p.inferior(cmd[1]))
     elif (cmd[0] in PTS):
       p.requestmove(cmd[0] + ' ' + ''.join(cmd[1:]))
 
