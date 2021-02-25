@@ -1,11 +1,5 @@
 """
 negamax small-board hex solver
-
-based on ttt and 3x3 go programs,
-special move order for 3x3, 3x4, 4x4 only,
-too slow for larger boards
-
-4x4 empty board, x-to-move, x wins, 7034997 calls
 """
 from copy import copy
 import time
@@ -73,35 +67,45 @@ stonecolors         = (textcolor, escape_ch + '0;35m', escape_ch + '0;32m')
 
 
 class Pattern:
+  # Represents a pattern of cells to match to cells on the board, could be a captured pattern or a dead cell pattern
   def __init__(self, offsets, chars, rows, cols):
+    # Offsets are vectors representing offsets from the main cell of the pattern at [0, 0, 0]
+    # chars must be in the same order as offsets, as in offsets[0] and chars[0] must describe the same cell.
+    # If a char in chars == ECH it is treated as a cell that would be dead or captured if the pattern matches.
     self.offsets = offsets
     self.deltas = [self.offsets]
     self.chars = chars;
     self.R = rows
     self.C = cols
 
+    #Precompute all rotations of the pattern, store them in deltas
     prev = self.deltas[-1]
     for i in range(6):
       self.deltas.append([cubic_rotate_60_cc(v) for v in prev])
       prev = self.deltas[-1]
 
   def matches(self, board, pt):
+    # Convert the point on the board to cubic coordinates
     vec = point_to_cubic(pt, self.C)
+    # Try each rotation of the pattern at pt
     for rot in self.deltas:
       is_c = True
       for i in range(len(rot)):
         c = vec + rot[i]
         x, z = c[0], c[2]
+        # If the point is off the board, check if it is on an edge of the same char
         if x < 0 or z < 0 or x >= self.C or z >= self.R:
           if self.on_correct_edge(c, self.chars[i]):
             continue
           is_c = False
           break
           continue
+        # If the point is on the board, check if that point contains the correct character
         ch = board[cubic_to_point(c, self.C)]
         if ch != self.chars[i]:
           is_c = False
           break
+      # If a pattern match is found, return the empty cells of the pattern.
       if is_c:
         ret = set()
         for i in range(len(self.chars)):
@@ -111,14 +115,18 @@ class Pattern:
     return set()
 
   def on_correct_edge(self, vec, ch):
+    # Check if a cell is on an edge that matches its colour
     x = vec[0]
     z = vec[2]
+    # If a BCH cell has an x coord between 0 and self.C then it must be
+    # outside the board on the z axis because of where this function is called.
     if ch == BCH:
       if 0 <= x and x <= self.C:
         return True
     elif ch == WCH:
       if 0 <= z and z <= self.R:
         return True
+    # Empty cells do not match any edge
     return False
 
 class Position: # hex board 
@@ -156,6 +164,7 @@ class Position: # hex board
     #else: self.CELLS = [j for j in range(self.n)]  # this order terrible for solving
 
     self.connection_graphs = {BCH:self.get_connections(BCH), WCH:self.get_connections(WCH)}
+    # dead cell patterns
     self.dc_patterns = [
       #  x x
       # x *
@@ -176,6 +185,7 @@ class Position: # hex board
       Pattern([np.array([0, 0, 0]), np.array([-1, 1, 0]), np.array([0, 1, -1]), np.array([1, 0, -1]), np.array([1, -1, 0])],
               [ECH, WCH, WCH, WCH, WCH], self.R, self.C),
     ]
+    # black captured patterns
     self.bc_patterns = [
       # x x x
       #  * *
@@ -189,6 +199,7 @@ class Position: # hex board
       #        [BCH, BCH, ECH, ECH, BCH, BCH], self.R, self.C)
     ]
 
+    # white captured patterns
     self.wc_patterns = [
       # o o o
       #  * *
@@ -235,10 +246,11 @@ class Position: # hex board
 
   def has_win(self, ptm):
     connections, side1, side2 = self.connection_graphs[ptm]
+    # Check if the special side nodes are adjacent in the connection graph
     return side1 in connections[side2]
 
   def connected_cells(self, pt, ptm, side1, side2):
-    # Find all ptm-occupied cells connected to a particular cell. Cells are connected if
+    # Find all ptm-occupied cells connected to a particular ptm-occupied cell. Cells are connected if
     # there is a path between them of only ptm cells.
     set1, set2 = (self.TOP_ROW, self.BTM_ROW) if ptm == BCH else (self.LFT_COL, self.RGT_COL)
     q, seen, reachable = deque([]), set(), set()
@@ -261,10 +273,11 @@ class Position: # hex board
     return seen, reachable
 
   def get_connections(self, ptm):
+    # Build the connection graphs
     set1, set2 = (self.TOP_ROW, self.BTM_ROW) if ptm == BCH else (self.LFT_COL, self.RGT_COL)
     connections = {}
 
-    # Connect adjacent empty cells, and create "sides"
+    # Connect adjacent empty cells, and create special side nodes
     side1 = len(self.brd)
     side2 = side1 + 1
     connections[side1] = set()
@@ -342,7 +355,8 @@ class Position: # hex board
     return paths
 
   def shortest_paths_from_to(self, connections, node, end):
-    # Find all shortest paths between two nodes using modified bfs
+    # Find the nodes contained in all shortest paths between two nodes using modified bfs
+    # Don't need to find the exact paths, just backtrack from end to start using parents
     parents = [[] for i in range(len(self.brd) + 2)]
     dists = [math.inf for i in range(len(self.brd)+2)]
     q = deque([node])
@@ -360,6 +374,7 @@ class Position: # hex board
         elif dists[n1] == d:
           parents[n1].append(n)
 
+    # Find all nodes in the shortest paths, add them to seen
     seen = {}
     q = deque([[end]])
     while q:
@@ -386,6 +401,8 @@ class Position: # hex board
     for i in range(len(self.brd)):
       if self.brd[i] != ECH:
         continue
+
+      # Find possible vcs
       poss_vcs = set()
       for c in self.nbrs[i]:
         if self.brd[c] != ECH:
@@ -396,9 +413,14 @@ class Position: # hex board
           elif c1 == i: continue
           if c1 in self.nbrs[i]:
             poss_vcs.add(tuple(sorted((c, c1))))
+
+      # Check each possible vc to see if it is an actual vc
       for pvc in poss_vcs:
+        # Add to score if it could be a vc in the future
         if self.brd[pvc[0]] == ECH and self.brd[pvc[1]] == ECH:
           score[i] += 1
+
+        # Add to score if it is an actual vc or vc'd to the edge
         s = set(self.nbrs[pvc[0]]).intersection(set(self.nbrs[pvc[1]]))
         s.remove(i)
         if not s:
@@ -406,7 +428,9 @@ class Position: # hex board
             score[i] += 1
         elif self.brd[list(s)[0]] == ptm:
           score[i] += 1
+
     spft = self.shortest_paths_from_to(*self.connection_graphs[ptm])
+    # 5 is an arbitrary constant that seemed to work well
     for i in spft:
       score[i] += 5
     counts = sorted([(score[i], i) for i in range(len(self.brd))], reverse=True)
