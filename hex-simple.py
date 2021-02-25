@@ -92,7 +92,7 @@ class Pattern:
       for i in range(len(rot)):
         c = vec + rot[i]
         x, z = c[0], c[2]
-        if x < 0 or z < 0 or x > self.C - 1 or z > self.R - 1:
+        if x < 0 or z < 0 or x >= self.C or z >= self.R:
           if self.on_correct_edge(c, self.chars[i]):
             continue
           is_c = False
@@ -111,14 +111,13 @@ class Pattern:
     return set()
 
   def on_correct_edge(self, vec, ch):
-    #TODO: obtuse corner
     x = vec[0]
     z = vec[2]
     if ch == BCH:
-      if 0 <= x and x < self.C:
+      if 0 <= x and x <= self.C:
         return True
     elif ch == WCH:
-      if 0 <= z and z < self.R:
+      if 0 <= z and z <= self.R:
         return True
     return False
 
@@ -438,6 +437,7 @@ class Position: # hex board
     return inf_cs
 
   def win_move(self, ptm): # assume neither player has won yet
+    #self.showboard()
     optm = oppCH(ptm) 
     calls, win_set = 1, set()
     opt_win_threats = []
