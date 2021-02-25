@@ -121,10 +121,10 @@ class Pattern:
     # If a BCH cell has an x coord between 0 and self.C then it must be
     # outside the board on the z axis because of where this function is called.
     if ch == BCH:
-      if 0 <= x and x <= self.C:
+      if 0 <= x and x < self.C or (x == self.C and z == -1) or (x == -1 and z == self.R):
         return True
     elif ch == WCH:
-      if 0 <= z and z <= self.R:
+      if 0 <= z and z < self.R or (x == self.C and z == -1) or (x == -1 and z == self.R):
         return True
     # Empty cells do not match any edge
     return False
@@ -196,7 +196,7 @@ class Position: # hex board
       #  * *
       # x x
       #Pattern([np.array([0, 0, 0]), np.array([1, -1, 0]), np.array([1, 0, -1]), np.array([2, -1, -1]), np.array([2, 0, -2]), np.array([3, -1, -2])],
-      #        [BCH, BCH, ECH, ECH, BCH, BCH], self.R, self.C)
+              #[BCH, BCH, ECH, ECH, BCH, BCH], self.R, self.C)
     ]
 
     # white captured patterns
@@ -210,7 +210,7 @@ class Position: # hex board
       #  * *
       # o o
       #Pattern([np.array([0, 0, 0]), np.array([1, -1, 0]), np.array([1, 0, -1]), np.array([2, -1, -1]), np.array([2, 0, -2]), np.array([3, -1, -2])],
-      #        [WCH, WCH, ECH, ECH, WCH, WCH], self.R, self.C)
+              #[WCH, WCH, ECH, ECH, WCH, WCH], self.R, self.C)
     ]
 
   def requestmove(self, cmd):
