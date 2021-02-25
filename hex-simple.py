@@ -443,18 +443,18 @@ class Position: # hex board
     y = self.R // 2 + self.R % 2 - 1
     return coord_to_point(y, x, self.C)
 
-  def inferior(self, ptm):
-    # Uses patterns to find some inferior cells whether they be dead or captured by the opponent
-    # Does not find all dead/captured cells.
+  def captured(self, ptm):
+    # Uses patterns to find cells captured by the current player.
+    # Does not find all captured cells.
     inf_cs = set()
     #for i in range(len(self.brd)):
       #for pat in self.dc_patterns:
         #inf_cs = inf_cs.union(pat.matches(self.brd, i))
-    if ptm == BCH:
+    if ptm == WCH:
       for i in range(len(self.brd)):
         for pat in self.wc_patterns:
           inf_cs = inf_cs.union(pat.matches(self.brd, i))
-    elif ptm == WCH:
+    elif ptm == BCH:
       for i in range(len(self.brd)):
         for pat in self.bc_patterns:
           inf_cs = inf_cs.union(pat.matches(self.brd, i))
@@ -465,8 +465,9 @@ class Position: # hex board
     optm = oppCH(ptm) 
     calls, win_set = 1, set()
     opt_win_threats = []
-    mustplay = self.live_cells(ptm) - self.inferior(ptm)
-    #mustplay = set([i for i in range(len(self.brd)) if self.brd[i] == ECH]) - self.inferior(ptm)
+    cap = self.captured(ptm)
+    #mustplay = set([i for i in range(len(self.brd)) if self.brd[i] == ECH]) - self.captured(ptm)
+    mustplay = self.live_cells(ptm) - self.captured(ptm)
     mp = copy(mustplay)
     while len(mustplay) > 0:
       cells = [self.midpoint()] + self.rank_moves_by_vc(ptm) # self.CELLS
@@ -475,11 +476,15 @@ class Position: # hex board
         if move in mustplay: break
 
       self.move(ptm, move)
+      for mv in cap:
+        self.move(ptm, mv)
       #self.showboard()
       #input()
       
       if self.has_win(ptm):
         pt = point_to_alphanum(move, self.C)
+        for mv in cap:
+          self.undo()
         self.undo()
         return pt, calls, {move}
 
@@ -488,11 +493,15 @@ class Position: # hex board
       if not omv: # opponent has no winning response to ptm move
         oset.add(move)
         pt = point_to_alphanum(move, self.C)
+        for mv in cap:
+          self.undo()
         self.undo()
         return pt, calls, oset
 
       mustplay = mustplay.intersection(oset)
       opt_win_threats.append(oset)
+      for mv in cap:
+        self.undo()
       self.undo()
 
     ovc = set()
