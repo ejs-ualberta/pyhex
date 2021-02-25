@@ -103,10 +103,15 @@ class Pattern:
           is_c = False
           break
       if is_c:
-        return True
-    return False
+        ret = set()
+        for i in range(len(self.chars)):
+          if self.chars[i] == ECH:
+            ret.add(cubic_to_point(vec + rot[i], self.C))
+        return ret
+    return set()
 
   def on_correct_edge(self, vec, ch):
+    #TODO: obtuse corner
     x = vec[0]
     z = vec[2]
     if ch == BCH:
@@ -152,7 +157,7 @@ class Position: # hex board
     #else: self.CELLS = [j for j in range(self.n)]  # this order terrible for solving
 
     self.connection_graphs = {BCH:self.get_connections(BCH), WCH:self.get_connections(WCH)}
-    self.patterns = [
+    self.dc_patterns = [
       #  x x
       # x *
       #    o
@@ -171,6 +176,31 @@ class Position: # hex board
       # o * o
       Pattern([np.array([0, 0, 0]), np.array([-1, 1, 0]), np.array([0, 1, -1]), np.array([1, 0, -1]), np.array([1, -1, 0])],
               [ECH, WCH, WCH, WCH, WCH], self.R, self.C),
+    ]
+    self.bc_patterns = [
+      # x x x
+      #  * *
+      #   x
+      Pattern([np.array([0, 0, 0]), np.array([0, 1, -1]), np.array([1, 0, -1]), np.array([0, 2, -2]), np.array([1, 1, -2]), np.array([2, 0, -2])],
+              [BCH, ECH, ECH, BCH, BCH, BCH], self.R, self.C),
+      #   x x
+      #  * *
+      # x x
+      #Pattern([np.array([0, 0, 0]), np.array([1, -1, 0]), np.array([1, 0, -1]), np.array([2, -1, -1]), np.array([2, 0, -2]), np.array([3, -1, -2])],
+      #        [BCH, BCH, ECH, ECH, BCH, BCH], self.R, self.C)
+    ]
+
+    self.wc_patterns = [
+      # o o o
+      #  * *
+      #   o
+      Pattern([np.array([0, 0, 0]), np.array([0, 1, -1]), np.array([1, 0, -1]), np.array([0, 2, -2]), np.array([1, 1, -2]), np.array([2, 0, -2])],
+              [WCH, ECH, ECH, WCH, WCH, WCH], self.R, self.C),
+      #   o o
+      #  * *
+      # o o
+      #Pattern([np.array([0, 0, 0]), np.array([1, -1, 0]), np.array([1, 0, -1]), np.array([2, -1, -1]), np.array([2, 0, -2]), np.array([3, -1, -2])],
+      #        [WCH, WCH, ECH, ECH, WCH, WCH], self.R, self.C)
     ]
 
   def requestmove(self, cmd):
@@ -394,18 +424,25 @@ class Position: # hex board
     # Uses patterns to find some inferior cells whether they be dead or captured by the opponent
     # Does not find all dead/captured cells.
     inf_cs = set()
-    for i in range(len(self.brd)):
-      for pat in self.patterns:
-        if pat.matches(self.brd, i):
-          inf_cs.add(i)
+    #for i in range(len(self.brd)):
+      #for pat in self.dc_patterns:
+        #inf_cs = inf_cs.union(pat.matches(self.brd, i))
+    if ptm == BCH:
+      for i in range(len(self.brd)):
+        for pat in self.wc_patterns:
+          inf_cs = inf_cs.union(pat.matches(self.brd, i))
+    elif ptm == WCH:
+      for i in range(len(self.brd)):
+        for pat in self.bc_patterns:
+          inf_cs = inf_cs.union(pat.matches(self.brd, i))
     return inf_cs
 
   def win_move(self, ptm): # assume neither player has won yet
     optm = oppCH(ptm) 
     calls, win_set = 1, set()
     opt_win_threats = []
-    #mustplay = self.live_cells(ptm) # Faster when using self.CELLS but not when using heuristic function
-    mustplay = set([i for i in range(len(self.brd)) if self.brd[i] == ECH])# - self.inferior(ptm)
+    mustplay = self.live_cells(ptm) - self.inferior(ptm)
+    #mustplay = set([i for i in range(len(self.brd)) if self.brd[i] == ECH]) - self.inferior(ptm)
     mp = copy(mustplay)
     while len(mustplay) > 0:
       cells = [self.midpoint()] + self.rank_moves_by_vc(ptm) # self.CELLS
