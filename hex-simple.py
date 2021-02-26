@@ -466,8 +466,8 @@ class Position: # hex board
     calls, win_set = 1, set()
     opt_win_threats = []
     cap = self.captured(ptm)
-    #mustplay = set([i for i in range(len(self.brd)) if self.brd[i] == ECH]) - self.captured(ptm)
-    mustplay = self.live_cells(ptm) - self.captured(ptm)
+    #mustplay = set([i for i in range(len(self.brd)) if self.brd[i] == ECH])
+    mustplay = self.live_cells(ptm)
     mp = copy(mustplay)
     while len(mustplay) > 0:
       cells = [self.midpoint()] + self.rank_moves_by_vc(ptm) # self.CELLS
@@ -476,32 +476,32 @@ class Position: # hex board
         if move in mustplay: break
 
       self.move(ptm, move)
-      for mv in cap:
+      cm = cap - {move}
+      for mv in cm:
         self.move(ptm, mv)
       #self.showboard()
       #input()
       
       if self.has_win(ptm):
         pt = point_to_alphanum(move, self.C)
-        for mv in cap:
+        for mv in cm:
           self.undo()
         self.undo()
         return pt, calls, {move}
+      for mv in cm:
+        self.undo()
 
       omv, ocalls, oset = self.win_move(optm)
+
       calls += ocalls
       if not omv: # opponent has no winning response to ptm move
         oset.add(move)
         pt = point_to_alphanum(move, self.C)
-        for mv in cap:
-          self.undo()
         self.undo()
         return pt, calls, oset
 
       mustplay = mustplay.intersection(oset)
       opt_win_threats.append(oset)
-      for mv in cap:
-        self.undo()
       self.undo()
 
     ovc = set()
@@ -606,8 +606,8 @@ def interact():
       #print(" ".join(sorted([point_to_alphanum(x, p.C) for x in p.live_cells(cmd[1])])))
     #elif cmd[0] == "rm":
       #p.rank_moves_by_vc(cmd[1], show_ranks=True)
-    elif cmd[0] == "i":
-      print(p.inferior(cmd[1]))
+    elif cmd[0] == "c":
+      print(p.captured(cmd[1]))
     elif (cmd[0] in PTS):
       p.requestmove(cmd[0] + ' ' + ''.join(cmd[1:]))
 
