@@ -12,10 +12,12 @@ class Node:
         if self.op == conj:
             self.move = expr[1]
             self.cells = {self.move}
-        else:
+        elif self.op == disj:
             self.move = None
             self.cells = set()
             lb = 1
+        else:
+            raise Exception("Invalid operation.")
         self.children = []
         for item in expr[lb:]:
             if type(item) == str:
@@ -180,7 +182,7 @@ class AndOrAutoTree:
 
 #4x4
 #tr = "(and c2 (or c1 d1) (or (and b3 (or a4 b4)) (and d3 (or d2 c3) (or c4 d4))))"
-tr = "(and d1 (or (and c3 (or d2 c2) (b4 c4)) (and b3 (or a4 b4) (or c2 (and b2 (or b1 c1)))) (and d2 (or (and d3 (or c4 d4)) (and b3 (or a4 b4) (or c3 (and b2 (or b1 c1)))))) (and d3 (or c4 d4) (or d2 (and b3 (or a4 c3) (or c2 (and b2 (or b1 c1))))))))"
+tr = "(and d1 (or (and c3 (or d2 c2) (or b4 c4)) (and b3 (or a4 b4) (or c2 (and b2 (or b1 c1)))) (and d2 (or (and d3 (or c4 d4)) (and b3 (or a4 b4) (or c3 (and b2 (or b1 c1)))))) (and d3 (or c4 d4) (or d2 (and b3 (or a4 c3) (or c2 (and b2 (or b1 c1))))))))"
 
 #3x3
 #tr = "(and b2 (or (and b1 (or a3 b3)) (and c1 (or a3 b3)) (and a3 (or b1 c1)) (and b3 (or b1 c1))))"
