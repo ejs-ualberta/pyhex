@@ -463,12 +463,12 @@ class Position: # hex board
   def win_move(self, ptm): # assume neither player has won yet
     #self.showboard()
     optm = oppCH(ptm) 
-    calls, win_set = 1, set()
-    opt_win_threats = []
-    cap = self.captured(ptm)
-    #mustplay = set([i for i in range(len(self.brd)) if self.brd[i] == ECH])
-    mustplay = self.live_cells(ptm)
-    mp = copy(mustplay)
+    calls = 1
+    #cap = self.captured(ptm)
+
+    mustplay = set([i for i in range(len(self.brd)) if self.brd[i] == ECH])
+    #mustplay = self.live_cells(ptm)
+    ovc = set()
     while len(mustplay) > 0:
       cells = [self.midpoint()] + self.rank_moves_by_vc(ptm) # self.CELLS
       # Find first empty cell
@@ -476,20 +476,13 @@ class Position: # hex board
         if move in mustplay: break
 
       self.move(ptm, move)
-      cm = cap - {move}
-      for mv in cm:
-        self.move(ptm, mv)
       #self.showboard()
       #input()
       
       if self.has_win(ptm):
         pt = point_to_alphanum(move, self.C)
-        for mv in cm:
-          self.undo()
         self.undo()
         return pt, calls, {move}
-      for mv in cm:
-        self.undo()
 
       omv, ocalls, oset = self.win_move(optm)
 
@@ -500,15 +493,9 @@ class Position: # hex board
         self.undo()
         return pt, calls, oset
 
+      ovc = ovc.union(oset)
       mustplay = mustplay.intersection(oset)
-      opt_win_threats.append(oset)
       self.undo()
-
-    ovc = set()
-    while mp:
-      last = opt_win_threats.pop()
-      ovc = ovc.union(last)
-      mp = mp.intersection(last)
     return '', calls, ovc
 
   def showboard(self):
