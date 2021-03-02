@@ -1,7 +1,7 @@
 """
 negamax small-board hex solver
 """
-from copy import copy
+from copy import copy, deepcopy
 import time
 import math
 from collections import deque
@@ -66,6 +66,26 @@ colorend, textcolor = escape_ch + '0m', escape_ch + '0;37m'
 stonecolors         = (textcolor, escape_ch + '0;35m', escape_ch + '0;32m')
 
 
+class UnionFind:
+  def __init__(self):
+    self.parents = {}
+
+  def union(self, elem1, elem2):
+    e1 = self.find(elem1)
+    e2 = self.find(elem2)
+    if e1 == e2:
+      return
+    self.parents[e1] = e2;
+
+  def find(self, elem):
+    while elem in self.parents:
+      p = self.parents[elem]
+      if p in self.parents:
+        self.parents[elem] = self.parents[p]
+      elem = p
+    return elem;
+
+
 class Pattern:
   # Represents a pattern of cells to match to cells on the board, could be a captured pattern or a dead cell pattern
   def __init__(self, offsets, chars, rows, cols):
@@ -88,6 +108,7 @@ class Pattern:
     # Convert the point on the board to cubic coordinates
     vec = point_to_cubic(pt, self.C)
     # Try each rotation of the pattern at pt
+    ret = set()
     for rot in self.deltas:
       is_c = True
       for i in range(len(rot)):
@@ -105,14 +126,12 @@ class Pattern:
         if ch != self.chars[i]:
           is_c = False
           break
-      # If a pattern match is found, return the empty cells of the pattern.
+      # If a pattern match is found, add the empty cells of the pattern to ret.
       if is_c:
-        ret = set()
         for i in range(len(self.chars)):
           if self.chars[i] == ECH:
             ret.add(cubic_to_point(vec + rot[i], self.C))
-        return ret
-    return set()
+    return ret
 
   def on_correct_edge(self, vec, ch):
     # Check if a cell is on an edge that matches its colour
@@ -121,13 +140,14 @@ class Pattern:
     # If a BCH cell has an x coord between 0 and self.C then it must be
     # outside the board on the z axis because of where this function is called.
     if ch == BCH:
-      if 0 <= x and x < self.C or (x == self.C and z == -1) or (x == -1 and z == self.R):
+      if 0 <= x and x < self.C:
         return True
     elif ch == WCH:
-      if 0 <= z and z < self.R or (x == self.C and z == -1) or (x == -1 and z == self.R):
+      if 0 <= z and z < self.R:
         return True
     # Empty cells do not match any edge
-    return False
+    # Obtuse corners match any colour
+    return (x == self.C and z == -1) or (x == -1 and z == self.R)
 
 class Position: # hex board 
   def __init__(self, rows, cols):
@@ -164,6 +184,13 @@ class Position: # hex board
     #else: self.CELLS = [j for j in range(self.n)]  # this order terrible for solving
 
     self.connection_graphs = {BCH:self.get_connections(BCH), WCH:self.get_connections(WCH)}
+    self.miai_reply = self.get_miai_replies()
+    #self.miai_connected = UnionFind()
+    self.miai_patterns = {BCH:Pattern([np.array([0, 0, 0]), np.array([1, 1, -2]), np.array([0, 1, -1]), np.array([1, 0, -1])],
+                                      [BCH, BCH, ECH, ECH], self.R, self.C),
+                          WCH:Pattern([np.array([0, 0, 0]), np.array([1, 1, -2]), np.array([0, 1, -1]), np.array([1, 0, -1])],
+                                      [WCH, WCH, ECH, ECH], self.R, self.C)}
+
     # dead cell patterns
     self.dc_patterns = [
       #  x x
@@ -213,6 +240,22 @@ class Position: # hex board
               #[WCH, WCH, ECH, ECH, WCH, WCH], self.R, self.C)
     ]
 
+  def update_miai_at(self, miai_replies, idx):
+    # Adds any new miai at self.brd[idx] to miai_replies
+    ch = self.brd[idx]
+    if ch == ECH:
+      return
+    cells = self.miai_patterns[ch].matches(self.brd, idx)
+    for cell in cells:
+      nbrs = cells.intersection(set(self.nbrs[cell]))
+      miai_replies[ch][cell] = miai_replies[ch][cell].union(nbrs)
+
+  def get_miai_replies(self):
+    miai_replies = {BCH:[set() for i in range(len(self.brd))], WCH:[set() for i in range(len(self.brd))]}
+    for i in range(len(self.brd)):
+      self.update_miai_at(miai_replies, i)
+    return miai_replies
+
   def requestmove(self, cmd):
     c = cmd
     ret, cmd = False, cmd.split()
@@ -241,8 +284,9 @@ class Position: # hex board
   def move(self, ch, where):
     self.brd = change_str(self.brd, where, ch)
     if ch != ECH:
-      self.H.append((ch, where, self.connection_graphs)) 
+      self.H.append((ch, where, self.connection_graphs, deepcopy(self.miai_reply))) 
     self.connection_graphs = {BCH:self.get_connections(BCH), WCH:self.get_connections(WCH)}
+    self.update_miai_at(self.miai_reply, where)
 
   def has_win(self, ptm):
     connections, side1, side2 = self.connection_graphs[ptm]
@@ -470,7 +514,12 @@ class Position: # hex board
     #mustplay = self.live_cells(ptm)
     ovc = set()
     while len(mustplay) > 0:
-      cells = [self.midpoint()] + self.rank_moves_by_vc(ptm) # self.CELLS
+      cells = self.rank_moves_by_vc(ptm) # self.CELLS
+      if self.H:
+        miai_replies = self.miai_reply[ptm][self.H[-1][1]]
+        cells = list(miai_replies) + cells
+      else:
+        cells = [self.midpoint()] + cells
       # Find first empty cell
       for move in cells:
         if move in mustplay: break
@@ -531,7 +580,7 @@ class Position: # hex board
       print('\n    original position,  nothing to undo\n')
       return False
     else:
-      ch, where, self.connection_graphs = self.H.pop()
+      ch, where, self.connection_graphs, self.miai_reply = self.H.pop()
       self.brd = change_str(self.brd, where, ECH)
     return True
 
@@ -593,9 +642,13 @@ def interact():
       #print(" ".join(sorted([point_to_alphanum(x, p.C) for x in p.live_cells(cmd[1])])))
     #elif cmd[0] == "rm":
       #p.rank_moves_by_vc(cmd[1], show_ranks=True)
+    elif cmd[0] == "miai":
+      print(p.miai_reply[cmd[1]])
     elif cmd[0] == "c":
       print(p.captured(cmd[1]))
     elif (cmd[0] in PTS):
       p.requestmove(cmd[0] + ' ' + ''.join(cmd[1:]))
 
+
+#if __name__ == "__main__":
 interact()
