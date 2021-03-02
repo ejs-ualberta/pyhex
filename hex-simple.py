@@ -85,6 +85,9 @@ class UnionFind:
       elem = p
     return elem;
 
+  def __str__(self):
+    return str(self.parents)
+
 
 class Pattern:
   # Represents a pattern of cells to match to cells on the board, could be a captured pattern or a dead cell pattern
@@ -506,36 +509,44 @@ class Position: # hex board
     set1, set2 = (self.TOP_ROW, self.BTM_ROW) if ptm == BCH else (self.LFT_COL, self.RGT_COL)
     optm = oppCH(ptm)
     score = [0] * len(self.brd)
-    for i in range(len(self.brd)):
-      if self.brd[i] != ECH:
-        continue
 
-      # Find possible vcs
-      poss_vcs = set()
-      for c in self.nbrs[i]:
-        if self.brd[c] != ECH:
+    if self.H:
+      miai_replies = self.miai_reply[ptm][self.H[-1][1]]
+      for mr in miai_replies:
+        score[mr] += 10
+
+    # if ptm is miai connected then don't try to make new vcs
+    if not self.miai_connected(ptm):
+      for i in range(len(self.brd)):
+        if self.brd[i] != ECH:
           continue
-        for c1 in self.nbrs[c]:
-          if self.brd[c1] != ECH:
+
+        # Find possible vcs
+        poss_vcs = set()
+        for c in self.nbrs[i]:
+          if self.brd[c] != ECH:
             continue
-          elif c1 == i: continue
-          if c1 in self.nbrs[i]:
-            poss_vcs.add(tuple(sorted((c, c1))))
+          for c1 in self.nbrs[c]:
+            if self.brd[c1] != ECH:
+              continue
+            elif c1 == i: continue
+            if c1 in self.nbrs[i]:
+              poss_vcs.add(tuple(sorted((c, c1))))
 
-      # Check each possible vc to see if it is an actual vc
-      for pvc in poss_vcs:
-        # Add to score if it could be a vc in the future
-        if self.brd[pvc[0]] == ECH and self.brd[pvc[1]] == ECH:
-          score[i] += 1
-
-        # Add to score if it is an actual vc or vc'd to the edge
-        s = set(self.nbrs[pvc[0]]).intersection(set(self.nbrs[pvc[1]]))
-        s.remove(i)
-        if not s:
-          if (pvc[0] in set1 and pvc[1] in set1) or (pvc[0] in set2 and pvc[1] in set2):
+        # Check each possible vc to see if it is an actual vc
+        for pvc in poss_vcs:
+          # Add to score if it could be a vc in the future
+          if self.brd[pvc[0]] == ECH and self.brd[pvc[1]] == ECH:
             score[i] += 1
-        elif self.brd[list(s)[0]] == ptm:
-          score[i] += 1
+
+          # Add to score if it is an actual vc or vc'd to the edge
+          s = set(self.nbrs[pvc[0]]).intersection(set(self.nbrs[pvc[1]]))
+          s.remove(i)
+          if not s:
+            if (pvc[0] in set1 and pvc[1] in set1) or (pvc[0] in set2 and pvc[1] in set2):
+              score[i] += 1
+          elif self.brd[list(s)[0]] == ptm:
+            score[i] += 1
 
     spft = self.shortest_paths_from_to(*self.connection_graphs[ptm])
     # 5 is an arbitrary constant that seemed to work well
@@ -578,12 +589,7 @@ class Position: # hex board
     mustplay = set([i for i in range(len(self.brd)) if self.brd[i] == ECH])
     #mustplay = self.live_cells(ptm)
     while len(mustplay) > 0:
-      cells = self.rank_moves_by_vc(ptm) # self.CELLS
-      if self.H:
-        miai_replies = self.miai_reply[ptm][self.H[-1][1]]
-        cells = list(miai_replies) + cells
-      else:
-        cells = [self.midpoint()] + cells
+      cells = [self.midpoint()] + self.rank_moves_by_vc(ptm) # self.CELLS
       # Find first empty cell
       for move in cells:
         if move in mustplay: break
@@ -710,8 +716,8 @@ def interact():
       ch = cmd[1]
       c = p.get_miai_connections(ch)
       cg, side1, side2 = p.connection_graphs[ch]
+      print(c)
       print(c.find(side1)==c.find(side2))
-      pass
     elif cmd[0] == "c":
       print(p.captured(cmd[1]))
     elif (cmd[0] in PTS):
