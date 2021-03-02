@@ -75,7 +75,7 @@ class UnionFind:
     e2 = self.find(elem2)
     if e1 == e2:
       return
-    self.parents[e1] = e2;
+    self.parents[e2] = e1;
 
   def find(self, elem):
     while elem in self.parents:
@@ -185,7 +185,7 @@ class Position: # hex board
 
     self.connection_graphs = {BCH:self.get_connections(BCH), WCH:self.get_connections(WCH)}
     self.miai_reply = self.get_miai_replies()
-    #self.miai_connected = UnionFind()
+    self.miai_connections = {BCH:UnionFind(), WCH:UnionFind()}
     self.miai_patterns = {BCH:Pattern([np.array([0, 0, 0]), np.array([1, 1, -2]), np.array([0, 1, -1]), np.array([1, 0, -1])],
                                       [BCH, BCH, ECH, ECH], self.R, self.C),
                           WCH:Pattern([np.array([0, 0, 0]), np.array([1, 1, -2]), np.array([0, 1, -1]), np.array([1, 0, -1])],
@@ -239,6 +239,38 @@ class Position: # hex board
       #Pattern([np.array([0, 0, 0]), np.array([1, -1, 0]), np.array([1, 0, -1]), np.array([2, -1, -1]), np.array([2, 0, -2]), np.array([3, -1, -2])],
               #[WCH, WCH, ECH, ECH, WCH, WCH], self.R, self.C)
     ]
+
+  def miai_connected(self, ptm):
+    c = self.miai_connections[ptm]
+    conn, side1, side2 = self.connection_graphs[ptm]
+    if c.find(side1) == c.find(side2):
+      return True
+    return False
+
+  def is_miai_connected(self, ptm):
+    set1, set2 = (self.TOP_ROW, self.BTM_ROW) if ptm == BCH else (self.LFT_COL, self.RGT_COL)
+    conn, side1, side2 = self.connection_graphs[ptm]
+    c = UnionFind()
+    for i in range(len(self.brd)):
+      ch = self.brd[i]
+      if ch != ptm:
+        continue
+
+      for nbr in self.nbrs[i]:
+        c.union(nbr, i)
+      if i in set1:
+        c.union(side1, i)
+      elif i in set2:
+        c.union(side2, i)
+      cells = self.miai_patterns[ptm].matches(self.brd, i)
+      for cell in cells:
+        if cell in set1:
+          c.union(side1, cell)
+        elif cell in set2:
+          c.union(side2, cell)
+        c.union(i, cell)
+    #print(c.find(side1), c.find(side2))
+    return c.find(side1) == c.find(side2)
 
   def update_miai_at(self, miai_replies, idx):
     # Adds any new miai at self.brd[idx] to miai_replies
@@ -508,11 +540,11 @@ class Position: # hex board
     #self.showboard()
     optm = oppCH(ptm) 
     calls = 1
+    ovc = set()
     #cap = self.captured(ptm)
 
     mustplay = set([i for i in range(len(self.brd)) if self.brd[i] == ECH])
     #mustplay = self.live_cells(ptm)
-    ovc = set()
     while len(mustplay) > 0:
       cells = self.rank_moves_by_vc(ptm) # self.CELLS
       if self.H:
@@ -643,7 +675,7 @@ def interact():
     #elif cmd[0] == "rm":
       #p.rank_moves_by_vc(cmd[1], show_ranks=True)
     elif cmd[0] == "miai":
-      print(p.miai_reply[cmd[1]])
+      print(p.is_miai_connected(cmd[1]))
     elif cmd[0] == "c":
       print(p.captured(cmd[1]))
     elif (cmd[0] in PTS):
