@@ -47,7 +47,7 @@ def point_to_coord(p, C):
 
 def point_to_alphanum(p, C):
   r, c = point_to_coord(p, C)
-  return 'abcdefghj'[c] + '1234566789'[r]
+  return 'abcdefghi'[c] + '123456789'[r]
 
 def pointset_to_str(S):
   s = ''
@@ -183,13 +183,13 @@ class Position: # hex board
     #  self.CELLS = (12,8,16,7,17,6,18,11,13,4,20,3,21,2,22,15,9,10,14,5,19,1,23,0,24)
     #else: self.CELLS = [j for j in range(self.n)]  # this order terrible for solving
 
-    self.connection_graphs = {BCH:self.get_connections(BCH), WCH:self.get_connections(WCH)}
-    self.miai_reply = self.get_miai_replies()
-    self.miai_connections = {BCH:UnionFind(), WCH:UnionFind()}
     self.miai_patterns = {BCH:Pattern([np.array([0, 0, 0]), np.array([1, 1, -2]), np.array([0, 1, -1]), np.array([1, 0, -1])],
                                       [BCH, BCH, ECH, ECH], self.R, self.C),
                           WCH:Pattern([np.array([0, 0, 0]), np.array([1, 1, -2]), np.array([0, 1, -1]), np.array([1, 0, -1])],
                                       [WCH, WCH, ECH, ECH], self.R, self.C)}
+    self.connection_graphs = {BCH:self.get_connections(BCH), WCH:self.get_connections(WCH)}
+    self.miai_reply = self.get_miai_replies()
+    self.miai_connections = {BCH:UnionFind(), WCH:UnionFind()}
 
     # dead cell patterns
     self.dc_patterns = [
@@ -241,13 +241,15 @@ class Position: # hex board
     ]
 
   def miai_connected(self, ptm):
+    # Check efficiently whether ptm stones are miai connected
     c = self.miai_connections[ptm]
     conn, side1, side2 = self.connection_graphs[ptm]
     if c.find(side1) == c.find(side2):
       return True
     return False
 
-  def is_miai_connected(self, ptm):
+  def get_miai_connections(self, ptm):
+    # Calculate from scratch whether ptm stones are miai connected
     set1, set2 = (self.TOP_ROW, self.BTM_ROW) if ptm == BCH else (self.LFT_COL, self.RGT_COL)
     conn, side1, side2 = self.connection_graphs[ptm]
     c = UnionFind()
@@ -257,7 +259,8 @@ class Position: # hex board
         continue
 
       for nbr in self.nbrs[i]:
-        c.union(nbr, i)
+        if self.brd[nbr] == ptm:
+          c.union(nbr, i)
       if i in set1:
         c.union(side1, i)
       elif i in set2:
@@ -270,13 +273,11 @@ class Position: # hex board
           c.union(side2, cell)
         c.union(i, cell)
     #print(c.find(side1), c.find(side2))
-    return c.find(side1) == c.find(side2)
+    return c
 
   def update_miai_at(self, miai_replies, idx):
     # Adds any new miai at self.brd[idx] to miai_replies
     ch = self.brd[idx]
-    if ch == ECH:
-      return
     cells = self.miai_patterns[ch].matches(self.brd, idx)
     for cell in cells:
       nbrs = cells.intersection(set(self.nbrs[cell]))
@@ -285,8 +286,35 @@ class Position: # hex board
   def get_miai_replies(self):
     miai_replies = {BCH:[set() for i in range(len(self.brd))], WCH:[set() for i in range(len(self.brd))]}
     for i in range(len(self.brd)):
-      self.update_miai_at(miai_replies, i)
+      if self.brd[i] != ECH:
+        self.update_miai_at(miai_replies, i)
     return miai_replies
+
+  def update_miai_connections(self, ptm, i):
+    optm = oppCH(ptm)
+    # If ptm played in the opponents's miai
+    if self.miai_reply[optm][i]:
+      self.miai_connections[optm] = self.get_miai_connections(optm)
+
+    set1, set2 = (self.TOP_ROW, self.BTM_ROW) if ptm == BCH else (self.LFT_COL, self.RGT_COL)
+    conn, side1, side2 = self.connection_graphs[ptm]
+    c = self.miai_connections[ptm]
+
+    for nbr in self.nbrs[i]:
+      if self.brd[nbr] == ptm:
+        c.union(nbr, i)
+    if i in set1:
+      c.union(side1, i)
+    elif i in set2:
+      c.union(side2, i)
+    cells = self.miai_patterns[ptm].matches(self.brd, i)
+    for cell in cells:
+      if cell in set1:
+        c.union(side1, cell)
+      elif cell in set2:
+        c.union(side2, cell)
+      c.union(i, cell)
+    self.miai_connections[ptm] = c
 
   def requestmove(self, cmd):
     c = cmd
@@ -314,11 +342,15 @@ class Position: # hex board
     return True
 
   def move(self, ch, where):
+    self.H.append((self.brd[where], where, self.connection_graphs, deepcopy(self.miai_reply), deepcopy(self.miai_connections)))
     self.brd = change_str(self.brd, where, ch)
     if ch != ECH:
-      self.H.append((ch, where, self.connection_graphs, deepcopy(self.miai_reply))) 
+      self.update_miai_at(self.miai_reply, where)
+      self.update_miai_connections(ch, where)
+    else:
+      self.miai_reply = self.get_miai_replies()
+      self.miai_connections = {BCH:self.get_miai_connections(BCH), WCH:self.get_miai_connections(WCH)}
     self.connection_graphs = {BCH:self.get_connections(BCH), WCH:self.get_connections(WCH)}
-    self.update_miai_at(self.miai_reply, where)
 
   def has_win(self, ptm):
     connections, side1, side2 = self.connection_graphs[ptm]
@@ -612,8 +644,8 @@ class Position: # hex board
       print('\n    original position,  nothing to undo\n')
       return False
     else:
-      ch, where, self.connection_graphs, self.miai_reply = self.H.pop()
-      self.brd = change_str(self.brd, where, ECH)
+      ch, where, self.connection_graphs, self.miai_reply, self.miai_connections = self.H.pop()
+      self.brd = change_str(self.brd, where, ch)
     return True
 
   def msg(self, ch):
@@ -674,8 +706,12 @@ def interact():
       #print(" ".join(sorted([point_to_alphanum(x, p.C) for x in p.live_cells(cmd[1])])))
     #elif cmd[0] == "rm":
       #p.rank_moves_by_vc(cmd[1], show_ranks=True)
-    elif cmd[0] == "miai":
-      print(p.is_miai_connected(cmd[1]))
+    elif cmd[0] == "mc":
+      ch = cmd[1]
+      c = p.get_miai_connections(ch)
+      cg, side1, side2 = p.connection_graphs[ch]
+      print(c.find(side1)==c.find(side2))
+      pass
     elif cmd[0] == "c":
       print(p.captured(cmd[1]))
     elif (cmd[0] in PTS):
