@@ -569,8 +569,11 @@ class Position: # hex board
       for mr in miai_replies:
         score[mr] += 12
 
-    # if ptm is miai connected then don't try to make new vcs
+    # if ptm is miai connected then only play in miai
     if not self.miai_connected(ptm):
+      cap = self.captured(optm)
+      for cc in cap:
+        score[cc] = -math.inf
       for i in range(len(self.brd)):
         if self.brd[i] != ECH:
           continue
@@ -623,14 +626,12 @@ class Position: # hex board
     #for i in range(len(self.brd)):
       #for pat in self.dc_patterns:
         #inf_cs = inf_cs.union(pat.matches(self.brd, i))
+    c_pats = self.bc_patterns
     if ptm == WCH:
-      for i in range(len(self.brd)):
-        for pat in self.wc_patterns:
-          inf_cs = inf_cs.union(pat.matches(self.brd, i))
-    elif ptm == BCH:
-      for i in range(len(self.brd)):
-        for pat in self.bc_patterns:
-          inf_cs = inf_cs.union(pat.matches(self.brd, i))
+      c_pats = self.wc_patterns
+    for i in range(len(self.brd)):
+      for pat in c_pats:
+        inf_cs = inf_cs.union(pat.matches(self.brd, i))
     return inf_cs
 
   def win_move(self, ptm): # assume neither player has won yet
@@ -638,7 +639,7 @@ class Position: # hex board
     calls = 1
     ovc = set()
 
-    mustplay = {i for i in range(len(self.brd)) if self.brd[i] == ECH}
+    mustplay = self.live_cells(ptm) #{i for i in range(len(self.brd)) if self.brd[i] == ECH}
     cells = [self.midpoint()] + self.rank_moves_by_vc(ptm) # self.CELLS
     while len(mustplay) > 0:
       move = None
