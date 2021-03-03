@@ -559,7 +559,7 @@ class Position: # hex board
 
   def rank_moves_by_vc(self, ptm, show_ranks=False):
     # Assign a score to each node based on whether it is virtually connected to other nodes/sides and
-    # on whether it is in a shortest winning path
+    # or whether it is in a shortest winning path
     set1, set2 = (self.TOP_ROW, self.BTM_ROW) if ptm == BCH else (self.LFT_COL, self.RGT_COL)
     optm = oppCH(ptm)
     score = [0] * len(self.brd)
@@ -634,15 +634,12 @@ class Position: # hex board
     return inf_cs
 
   def win_move(self, ptm): # assume neither player has won yet
-    #self.showboard()
     optm = oppCH(ptm) 
     calls = 1
     ovc = set()
-    #cap = self.captured(ptm)
 
-    mustplay = set([i for i in range(len(self.brd)) if self.brd[i] == ECH])
+    mustplay = {i for i in range(len(self.brd)) if self.brd[i] == ECH}
     cells = [self.midpoint()] + self.rank_moves_by_vc(ptm) # self.CELLS
-    #mustplay = self.live_cells(ptm)
     while len(mustplay) > 0:
       move = None
       for i in range(len(cells)):
@@ -652,7 +649,6 @@ class Position: # hex board
           break
 
       self.move(ptm, move)
-      #self.showboard()
 
       if self.miai_connected(ptm): # Also true if has_win
         pt = point_to_alphanum(move, self.C)
@@ -736,6 +732,7 @@ def printmenu():
   print('  o e3                          play o e 3')
   print('  . a2                           erase a 2')
   print('  u                                   undo')
+  print('  m                      display miai info')
   print('  [return]                            quit')
 
 
@@ -772,14 +769,15 @@ def interact():
       #print(" ".join(sorted([point_to_alphanum(x, p.C) for x in p.live_cells(cmd[1])])))
     #elif cmd[0] == "rm":
       #p.rank_moves_by_vc(cmd[1], show_ranks=True)
-    elif cmd[0] == "ws":
-      print(p.get_miai_ws(cmd[1]))
-    elif cmd[0] == "mc":
+    #elif cmd[0] == "mws":
+      #print(p.get_miai_ws(cmd[1]))
+    elif cmd[0] == "m":
       ch = cmd[1]
       c = p.get_miai_connections(ch)
       cg, side1, side2 = p.connection_graphs[ch]
-      print(c)
-      print(c.find(side1)==c.find(side2))
+      print("Connections:", c)
+      print("Replies:", p.miai_reply[ch])
+      print("Miai connected:", c.find(side1)==c.find(side2))
     elif cmd[0] == "c":
       print(p.captured(cmd[1]))
     elif (cmd[0] in PTS):
