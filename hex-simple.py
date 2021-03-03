@@ -243,7 +243,7 @@ class Position: # hex board
               #[WCH, WCH, ECH, ECH, WCH, WCH], self.R, self.C)
     ]
 
-  def get_miai_ws(self, ptm):
+  def get_all_miai_ws(self, ptm):
     conn, side1, side2 = self.connection_graphs[ptm]
     set1, set2 = (self.TOP_ROW, self.BTM_ROW) if ptm == BCH else (self.LFT_COL, self.RGT_COL)
     mc = set()
@@ -267,9 +267,35 @@ class Position: # hex board
         ops = set(self.nbrs[nd]).intersection(occ).union(miai_cells) - {node}
         gmws_helper(nd, ops)
         visited.remove(nd)
-
     gmws_helper(side1, options)
     return winset - occ - {side1, side2}
+
+  def get_miai_ws(self, ptm):
+    conn, side1, side2 = self.connection_graphs[ptm]
+    set1, set2 = (self.TOP_ROW, self.BTM_ROW) if ptm == BCH else (self.LFT_COL, self.RGT_COL)
+    mc = set()
+    for s in self.miai_reply[ptm]:
+      mc = mc.union(s)
+    occ = {i for i in range(len(self.brd)) if self.brd[i] == ptm}
+    options = occ.union(mc).intersection(conn[side1])
+    visited = set()
+    def gmws_helper(node, options):
+      if node in visited:
+        return set()
+      visited.add(node)
+      if node in set2:
+        return visited
+      for nd in options:
+        if nd in visited:
+          continue
+        miai_cells = self.miai_patterns[ptm].matches(self.brd, nd)
+        ops = set(self.nbrs[nd]).intersection(occ).union(miai_cells) - {node}
+        ws = gmws_helper(nd, ops)
+        if ws:
+          return ws
+        visited.remove(nd)
+      return set()
+    return gmws_helper(side1, options) - occ - {side1, side2}
 
   def miai_connected(self, ptm):
     # Check efficiently whether ptm stones are miai connected
@@ -626,11 +652,16 @@ class Position: # hex board
           break
 
       self.move(ptm, move)
+      #self.showboard()
 
-      if self.has_win(ptm):
+      if self.miai_connected(ptm): # Also true if has_win
         pt = point_to_alphanum(move, self.C)
+        ws = set()
+        # Only get miai ws if there is a nontrivial win
+        if not self.has_win(ptm):
+          ws = self.get_all_miai_ws(ptm)
         self.undo()
-        return pt, calls, {move}
+        return pt, calls, ws.union({move})
 
       omv, ocalls, oset = self.win_move(optm)
 
