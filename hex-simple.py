@@ -243,6 +243,7 @@ class Position: # hex board
               #[WCH, WCH, ECH, ECH, WCH, WCH], self.R, self.C)
     ]
 
+
   def miai_connected(self, ptm):
     # Check efficiently whether ptm stones are miai connected
     c = self.miai_connections[ptm]
@@ -513,7 +514,7 @@ class Position: # hex board
     if self.H:
       miai_replies = self.miai_reply[ptm][self.H[-1][1]]
       for mr in miai_replies:
-        score[mr] += 10
+        score[mr] += 12
 
     # if ptm is miai connected then don't try to make new vcs
     if not self.miai_connected(ptm):
@@ -587,17 +588,18 @@ class Position: # hex board
     #cap = self.captured(ptm)
 
     mustplay = set([i for i in range(len(self.brd)) if self.brd[i] == ECH])
+    cells = [self.midpoint()] + self.rank_moves_by_vc(ptm) # self.CELLS
     #mustplay = self.live_cells(ptm)
     while len(mustplay) > 0:
-      cells = [self.midpoint()] + self.rank_moves_by_vc(ptm) # self.CELLS
-      # Find first empty cell
-      for move in cells:
-        if move in mustplay: break
+      move = None
+      for i in range(len(cells)):
+        move = cells[i]
+        if move in mustplay:
+          cells = cells[i:]
+          break
 
       self.move(ptm, move)
-      #self.showboard()
-      #input()
-      
+
       if self.has_win(ptm):
         pt = point_to_alphanum(move, self.C)
         self.undo()
