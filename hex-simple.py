@@ -243,6 +243,33 @@ class Position: # hex board
               #[WCH, WCH, ECH, ECH, WCH, WCH], self.R, self.C)
     ]
 
+  def get_miai_ws(self, ptm):
+    conn, side1, side2 = self.connection_graphs[ptm]
+    set1, set2 = (self.TOP_ROW, self.BTM_ROW) if ptm == BCH else (self.LFT_COL, self.RGT_COL)
+    mc = set()
+    for s in self.miai_reply[ptm]:
+      mc = mc.union(s)
+    occ = {i for i in range(len(self.brd)) if self.brd[i] == ptm}
+    options = occ.union(mc).intersection(conn[side1])
+    visited = set()
+    winset = set()
+    def gmws_helper(node, options):
+      nonlocal winset
+      if node in visited:
+        return
+      visited.add(node)
+      if node in set2:
+        winset = winset.union(visited)
+      for nd in options:
+        if nd in visited:
+          continue
+        miai_cells = self.miai_patterns[ptm].matches(self.brd, nd)
+        ops = set(self.nbrs[nd]).intersection(occ).union(miai_cells) - {node}
+        gmws_helper(nd, ops)
+        visited.remove(nd)
+
+    gmws_helper(side1, options)
+    return winset - occ - {side1, side2}
 
   def miai_connected(self, ptm):
     # Check efficiently whether ptm stones are miai connected
@@ -714,6 +741,8 @@ def interact():
       #print(" ".join(sorted([point_to_alphanum(x, p.C) for x in p.live_cells(cmd[1])])))
     #elif cmd[0] == "rm":
       #p.rank_moves_by_vc(cmd[1], show_ranks=True)
+    elif cmd[0] == "ws":
+      print(p.get_miai_ws(cmd[1]))
     elif cmd[0] == "mc":
       ch = cmd[1]
       c = p.get_miai_connections(ch)
