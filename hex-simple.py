@@ -93,6 +93,7 @@ class Pattern:
   # Represents a pattern of cells to match to cells on the board, could be a captured pattern or a dead cell pattern
   def __init__(self, offsets, chars, rows, cols):
     # Offsets are vectors representing offsets from the main cell of the pattern at [0, 0, 0]
+    # Main cell should be an empty cell so that it is always on the board and can potentially match more places.
     # chars must be in the same order as offsets, as in offsets[0] and chars[0] must describe the same cell.
     # If a char in chars == ECH it is treated as a cell that would be dead or captured if the pattern matches.
     self.offsets = offsets
@@ -104,7 +105,7 @@ class Pattern:
     #Precompute all rotations of the pattern, store them in deltas
     prev = self.deltas[-1]
     for i in range(6):
-      self.deltas.append([cubic_rotate_60_cc(v) for v in prev])
+      self.deltas.append([cubic_rotate_60_cc(np.array(v)) for v in prev])
       prev = self.deltas[-1]
 
   def matches(self, board, pt):
@@ -186,9 +187,9 @@ class Position: # hex board
     #  self.CELLS = (12,8,16,7,17,6,18,11,13,4,20,3,21,2,22,15,9,10,14,5,19,1,23,0,24)
     #else: self.CELLS = [j for j in range(self.n)]  # this order terrible for solving
 
-    self.miai_patterns = {BCH:Pattern([np.array([0, 0, 0]), np.array([1, 1, -2]), np.array([0, 1, -1]), np.array([1, 0, -1])],
+    self.miai_patterns = {BCH:Pattern([[0, 0, 0], [1, 1, -2], [0, 1, -1], [1, 0, -1]],
                                       [BCH, BCH, ECH, ECH], self.R, self.C),
-                          WCH:Pattern([np.array([0, 0, 0]), np.array([1, 1, -2]), np.array([0, 1, -1]), np.array([1, 0, -1])],
+                          WCH:Pattern([[0, 0, 0], [1, 1, -2], [0, 1, -1], [1, 0, -1]],
                                       [WCH, WCH, ECH, ECH], self.R, self.C)}
     self.connection_graphs = {BCH:self.get_connections(BCH), WCH:self.get_connections(WCH)}
     self.miai_reply = self.get_miai_replies()
@@ -199,34 +200,48 @@ class Position: # hex board
       #  x x
       # x *
       #    o
-      Pattern([np.array([0, 0, 0]), np.array([-1, 1, 0]), np.array([0, 1, -1]), np.array([1, 0, -1]), np.array([0, -1, 1])],
+      Pattern([[0, 0, 0], [-1, 1, 0], [0, 1, -1], [1, 0, -1], [0, -1, 1]],
               [ECH, BCH, BCH, BCH, WCH], self.R, self.C),
       #  o o
       # o *
       #    x
-      Pattern([np.array([0, 0, 0]), np.array([-1, 1, 0]), np.array([0, 1, -1]), np.array([1, 0, -1]), np.array([0, -1, 1])],
+      Pattern([[0, 0, 0], [-1, 1, 0], [0, 1, -1], [1, 0, -1], [0, -1, 1]],
               [ECH, WCH, WCH, WCH, BCH], self.R, self.C),
       #  x x
       # x * x
-      Pattern([np.array([0, 0, 0]), np.array([-1, 1, 0]), np.array([0, 1, -1]), np.array([1, 0, -1]), np.array([1, -1, 0])],
+      Pattern([[0, 0, 0], [-1, 1, 0], [0, 1, -1], [1, 0, -1], [1, -1, 0]],
               [ECH, BCH, BCH, BCH, BCH], self.R, self.C),
       #  o o
       # o * o
-      Pattern([np.array([0, 0, 0]), np.array([-1, 1, 0]), np.array([0, 1, -1]), np.array([1, 0, -1]), np.array([1, -1, 0])],
+      Pattern([[0, 0, 0], [-1, 1, 0], [0, 1, -1], [1, 0, -1], [1, -1, 0]],
               [ECH, WCH, WCH, WCH, WCH], self.R, self.C),
+      #  x
+      # x * o
+      #    o
+      Pattern([[0, 0, 0], [-1, 1, 0], [0, 1, -1], [0, -1, 1], [1, -1, 0]],
+              [ECH, BCH, BCH, WCH, WCH], self.R, self.C),
     ]
     # black captured patterns
     self.bc_patterns = [
       # x x x
       #  * *
       #   x
-      Pattern([np.array([0, 0, 0]), np.array([0, 1, -1]), np.array([1, 0, -1]), np.array([0, 2, -2]), np.array([1, 1, -2]), np.array([2, 0, -2])],
-              [BCH, ECH, ECH, BCH, BCH, BCH], self.R, self.C),
+      Pattern([[0, 0, 0], [1, -1, 0], [0, -1, 1], [0, 1, -1], [1, 0, -1], [2, -1, -1]],
+              [ECH, ECH, BCH, BCH, BCH, BCH], self.R, self.C),
+      # x x
+      #  * * o
+      #   x
+      Pattern([[0, 0, 0], [1, -1, 0], [0, 1, -1], [1, 0, -1], [2, -2, 0], [0, -1, 1]],
+              [ECH, ECH, BCH, BCH, WCH, BCH], self.R, self.C),
+      Pattern([[0, 0, 0], [1, -1, 0], [1, 0, -1], [2, -1, -1], [-1, 1, 0], [0, -1, 1]],
+              [ECH, ECH, BCH, BCH, WCH, BCH], self.R, self.C),
       #   x x
       #  * *
       # x x
-      #Pattern([np.array([0, 0, 0]), np.array([1, -1, 0]), np.array([1, 0, -1]), np.array([2, -1, -1]), np.array([2, 0, -2]), np.array([3, -1, -2])],
-              #[BCH, BCH, ECH, ECH, BCH, BCH], self.R, self.C)
+      Pattern([[1, 0, -1], [2, -1, -1], [0, 0, 0], [1, -1, 0], [-1, 0, 1], [0, -1, 1]],
+              [BCH, BCH, ECH, ECH, BCH, BCH], self.R, self.C),
+      Pattern([[0, 1, -1], [1, 0, -1], [0, 0, 0], [1, -1, 0], [0, -1, 1], [1, -2, 1]],
+              [BCH, BCH, ECH, ECH, BCH, BCH], self.R, self.C)
     ]
 
     # white captured patterns
@@ -234,17 +249,26 @@ class Position: # hex board
       # o o o
       #  * *
       #   o
-      Pattern([np.array([0, 0, 0]), np.array([0, 1, -1]), np.array([1, 0, -1]), np.array([0, 2, -2]), np.array([1, 1, -2]), np.array([2, 0, -2])],
-              [WCH, ECH, ECH, WCH, WCH, WCH], self.R, self.C),
+      Pattern([[0, 0, 0], [1, -1, 0], [0, -1, 1], [0, 1, -1], [1, 0, -1], [2, -1, -1]],
+              [ECH, ECH, WCH, WCH, WCH, WCH], self.R, self.C),
+      # o o
+      #  * * x
+      #   o
+      Pattern([[0, 0, 0], [1, -1, 0], [0, 1, -1], [1, 0, -1], [2, -2, 0], [0, -1, 1]],
+              [ECH, ECH, WCH, WCH, BCH, WCH], self.R, self.C),
+      Pattern([[0, 0, 0], [1, -1, 0], [1, 0, -1], [2, -1, -1], [-1, 1, 0], [0, -1, 1]],
+              [ECH, ECH, WCH, WCH, BCH, WCH], self.R, self.C),
       #   o o
       #  * *
       # o o
-      #Pattern([np.array([0, 0, 0]), np.array([1, -1, 0]), np.array([1, 0, -1]), np.array([2, -1, -1]), np.array([2, 0, -2]), np.array([3, -1, -2])],
-              #[WCH, WCH, ECH, ECH, WCH, WCH], self.R, self.C)
+      Pattern([[1, 0, -1], [2, -1, -1], [0, 0, 0], [1, -1, 0], [-1, 0, 1], [0, -1, 1]],
+              [WCH, WCH, ECH, ECH, WCH, WCH], self.R, self.C),
+      Pattern([[0, 1, -1], [1, 0, -1], [0, 0, 0], [1, -1, 0], [0, -1, 1], [1, -2, 1]],
+              [WCH, WCH, ECH, ECH, WCH, WCH], self.R, self.C)
     ]
 
 
-  #TODO: If we have a reply to an opponent probe that restores a connection, should we reord that information?
+  #TODO: If we have a reply to an opponent probe that restores a connection, should we record that information?
   #TODO: Generalize miai def'n? For example by using the 2-or rule?
   def get_all_miai_ws(self, ptm):
     conn, side1, side2 = self.connection_graphs[ptm]
@@ -758,6 +782,7 @@ class Position: # hex board
 
 def printmenu():
   print('  h                              help menu')
+  print('  s                         show the board')
   print('  ? x|o      solve the position for x or o')
   print('  z                         show the board')
   print('  x b2                          play x b 2')
@@ -769,15 +794,17 @@ def printmenu():
 
 
 def interact():
+  print()
   p = Position(4, 4)
   while True:
-    p.showboard()
-    cmd = input(' ').split()
+    cmd = input('> ').split()
     if len(cmd)==0:
       print('\n ... adios :)\n')
       return
+
     if cmd[0]=='h':
       printmenu()
+
     elif cmd[0]=='z':
       try:
         sz = int(cmd[1])
@@ -785,6 +812,7 @@ def interact():
           p = Position(sz, sz)
       except:
         print("Command requires natural number > 1.")
+
     elif cmd[0]=='u':
       if len(cmd) == 2:
         try:
@@ -794,18 +822,15 @@ def interact():
           print("Not a natural number.")
       else:
         p.undo()
+
     elif cmd[0]=='?':
       if len(cmd) > 0:
         if cmd[1] in {BCH, WCH}: 
           print(p.msg(cmd[1]))
-    elif cmd[0] == 'l':
-      if len(cmd) != 2:
-        print("Command requires one argument.")
-        continue
-      if cmd[1] not in {BCH, WCH}:
-        print("Argument must be one of", BCH, WCH)
-        continue
-      print(" ".join(sorted([point_to_alphanum(x, p.C) for x in p.live_cells(cmd[1])])))
+
+    #elif cmd[0] == 'l':
+      #print(" ".join(sorted([point_to_alphanum(x, p.C) for x in p.live_cells(cmd[1])])))
+
     elif cmd[0] == "rm":
       if len(cmd) != 2:
         print("Command requires one argument.")
@@ -815,8 +840,10 @@ def interact():
         continue
       print()
       p.rank_moves_by_vc(cmd[1], show_ranks=True)
+
     #elif cmd[0] == "mws":
       #print(p.get_miai_ws(cmd[1]))
+
     elif cmd[0] == "m":
       if len(cmd) != 2:
         print("Command requires one argument.")
@@ -830,18 +857,29 @@ def interact():
       print("Connections:", c)
       print("Replies:", p.miai_reply[ch])
       print("Miai connected:", c.find(side1)==c.find(side2))
+
     elif cmd[0] == "c":
-      if len(cmd) != 2:
-        print("Command requires one argument.")
-        continue
-      if cmd[1] not in {BCH, WCH}:
-        print("Argument must be one of", BCH, WCH)
-        continue
+      dead = p.dead()
+      capb = p.captured(BCH)
+      capw = p.captured(WCH)
       print()
-      print("Dead:    ", " ".join([point_to_alphanum(x, p.C) for x in p.dead()]))
-      print("Capt:", " ".join([point_to_alphanum(x, p.C) for x in p.captured(cmd[1])]))
+      print("Dead:", " ".join([point_to_alphanum(x, p.C) for x in dead]))
+      print("BCap:", " ".join([point_to_alphanum(x, p.C) for x in capb]))
+      print("WCap:", " ".join([point_to_alphanum(x, p.C) for x in capw]))
+      n_undo = len(dead) + len(capb) + len(capw)
+      p.fill_cells(dead, BCH)
+      p.fill_cells(capb, BCH)
+      p.fill_cells(capw, WCH)
+      p.showboard()
+      for i in range(n_undo):
+        p.undo()
+
     elif (cmd[0] in PTS):
       p.requestmove(cmd[0] + ' ' + ''.join(cmd[1:]))
+
+    elif (cmd[0] == 's'):
+      p.showboard()
+
     else:
       print("Unknown command.")
 
