@@ -169,7 +169,7 @@ class Position: # hex board
         if c < self.C-1:           nbs.append(coord_to_point(r,   c+1, self.C))
         if r < self.R-1 and c > 0: nbs.append(coord_to_point(r+1, c-1, self.C))
         if r < self.R-1:           nbs.append(coord_to_point(r+1, c,   self.C))
-        self.nbrs.append(nbs)
+        self.nbrs.append(set(nbs))
 
     self.LFT_COL, self.RGT_COL, self.TOP_ROW, self.BTM_ROW = set(), set(), set(), set()
     for r in range(self.R):
@@ -264,7 +264,7 @@ class Position: # hex board
         if nd in visited:
           continue
         miai_cells = self.miai_patterns[ptm].matches(self.brd, nd)
-        ops = set(self.nbrs[nd]).intersection(occ).union(miai_cells) - {node}
+        ops = self.nbrs[nd].intersection(occ).union(miai_cells) - {node}
         gmws_helper(nd, ops)
         visited.remove(nd)
     gmws_helper(side1, options)
@@ -289,7 +289,7 @@ class Position: # hex board
         if nd in visited:
           continue
         miai_cells = self.miai_patterns[ptm].matches(self.brd, nd)
-        ops = set(self.nbrs[nd]).intersection(occ).union(miai_cells) - {node}
+        ops = self.nbrs[nd].intersection(occ).union(miai_cells) - {node}
         ws = gmws_helper(nd, ops)
         if ws:
           return ws
@@ -301,9 +301,7 @@ class Position: # hex board
     # Check efficiently whether ptm stones are miai connected
     c = self.miai_connections[ptm]
     conn, side1, side2 = self.connection_graphs[ptm]
-    if c.find(side1) == c.find(side2):
-      return True
-    return False
+    return c.find(side1) == c.find(side2)
 
   def get_miai_connections(self, ptm):
     # Calculate from scratch whether ptm stones are miai connected
@@ -337,7 +335,7 @@ class Position: # hex board
     ch = self.brd[idx]
     cells = self.miai_patterns[ch].matches(self.brd, idx)
     for cell in cells:
-      nbrs = cells.intersection(set(self.nbrs[cell]))
+      nbrs = cells.intersection(self.nbrs[cell])
       miai_replies[ch][cell] = miai_replies[ch][cell].union(nbrs)
 
   def get_miai_replies(self):
@@ -364,7 +362,15 @@ class Position: # hex board
       c.union(side1, i)
     elif i in set2:
       c.union(side2, i)
+
     cells = self.miai_patterns[ptm].matches(self.brd, i)
+    subs = {(a, b) for a in cells for b in cells if a != b and b in self.nbrs[a]}
+    for s in subs:
+      l = list(s)
+      n = self.nbrs[l[0]].intersection(self.nbrs[l[1]]) - {i}
+      if n:
+        c.union(i, n.pop())
+
     for cell in cells:
       if cell in set1:
         c.union(side1, cell)
@@ -489,6 +495,7 @@ class Position: # hex board
     return live
 
   def induced_paths_from_to(self, connections, visited, node, end):
+    # Warning!!! Slow for larger boards!
     if node == end:
       return {(end,)}
     visited.add(node)
@@ -597,7 +604,7 @@ class Position: # hex board
             score[i] += 1
 
           # Add to score if it is an actual vc or vc'd to the edge
-          s = set(self.nbrs[pvc[0]]).intersection(set(self.nbrs[pvc[1]]))
+          s = self.nbrs[pvc[0]].intersection(self.nbrs[pvc[1]])
           s.remove(i)
           if not s:
             if (pvc[0] in set1 and pvc[1] in set1) or (pvc[0] in set2 and pvc[1] in set2):
@@ -639,7 +646,13 @@ class Position: # hex board
     calls = 1
     ovc = set()
 
-    mustplay = self.live_cells(ptm) #{i for i in range(len(self.brd)) if self.brd[i] == ECH}
+    if self.miai_connected(optm):
+      return '', calls, set()
+    if self.miai_connected(ptm):
+      ws = self.get_all_miai_ws(ptm)
+      return next(iter(ws)), calls, ws
+
+    mustplay = {i for i in range(len(self.brd)) if self.brd[i] == ECH}
     cells = [self.midpoint()] + self.rank_moves_by_vc(ptm) # self.CELLS
     while len(mustplay) > 0:
       move = None
@@ -766,10 +779,10 @@ def interact():
           print(p.msg('x'))
         elif cmd[1]=='o': 
           print(p.msg('o'))
-    #elif cmd[0] == 'l':
-      #print(" ".join(sorted([point_to_alphanum(x, p.C) for x in p.live_cells(cmd[1])])))
-    #elif cmd[0] == "rm":
-      #p.rank_moves_by_vc(cmd[1], show_ranks=True)
+    elif cmd[0] == 'l':
+      print(" ".join(sorted([point_to_alphanum(x, p.C) for x in p.live_cells(cmd[1])])))
+    elif cmd[0] == "rm":
+      p.rank_moves_by_vc(cmd[1], show_ranks=True)
     #elif cmd[0] == "mws":
       #print(p.get_miai_ws(cmd[1]))
     elif cmd[0] == "m":
