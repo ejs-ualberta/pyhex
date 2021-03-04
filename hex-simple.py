@@ -614,12 +614,12 @@ class Position: # hex board
             score[i] += 1
 
     spft = self.shortest_paths_from_to(*self.connection_graphs[ptm])
-    # 5 is an arbitrary constant that seemed to work well
+    # Scores are arbitrary constants that seemed to work well
     for i in spft:
       score[i] += 5
     counts = sorted([(score[i], i) for i in range(len(self.brd))], reverse=True)
     if show_ranks:
-      print(counts)
+      print("Cells:Ranks", " ".join([point_to_alphanum(rc[1], self.C) + ":" + str(rc[0]) for rc in counts])) 
     return [i[1] for i in counts]
 
   def midpoint(self):
@@ -813,6 +813,7 @@ def interact():
       if cmd[1] not in {BCH, WCH}:
         print("Argument must be one of", BCH, WCH)
         continue
+      print()
       p.rank_moves_by_vc(cmd[1], show_ranks=True)
     #elif cmd[0] == "mws":
       #print(p.get_miai_ws(cmd[1]))
