@@ -582,9 +582,6 @@ class Position: # hex board
 
     # if ptm is miai connected then only play in miai
     if not self.miai_connected(ptm):
-      cap = self.captured(optm)
-      for cc in cap:
-        score[cc] = -math.inf
       for i in range(len(self.brd)):
         if self.brd[i] != ECH:
           continue
@@ -649,16 +646,32 @@ class Position: # hex board
         inf_cs = inf_cs.union(pat.matches(self.brd, i))
     return inf_cs
 
+  def fill_cells(self, cells, ptm):
+    for c in cells:
+      self.move(ptm, c)
+
   def win_move(self, ptm): # assume neither player has won yet
     optm = oppCH(ptm) 
     calls = 1
     ovc = set()
+    dead = self.dead()
+    capp = self.captured(ptm)
+    capo = self.captured(optm)
+    n_undo = len(dead) + len(capp) + len(capo)
 
     if self.miai_connected(optm):
       return '', calls, set()
 
+    self.fill_cells(dead, ptm)
+    self.fill_cells(capp, ptm)
+    self.fill_cells(capo, optm)
+
     mustplay = {i for i in range(len(self.brd)) if self.brd[i] == ECH}
     cells = [self.midpoint()] + self.rank_moves_by_vc(ptm) # self.CELLS
+
+    for i in range(n_undo):
+      self.undo()
+
     while len(mustplay) > 0:
       move = None
       for i in range(len(cells)):
@@ -823,7 +836,9 @@ def interact():
       if cmd[1] not in {BCH, WCH}:
         print("Argument must be one of", BCH, WCH)
         continue
-      print(p.captured(cmd[1]))
+      print()
+      print("Dead:    ", " ".join([point_to_alphanum(x, p.C) for x in p.dead()]))
+      print("Capt:", " ".join([point_to_alphanum(x, p.C) for x in p.captured(cmd[1])]))
     elif (cmd[0] in PTS):
       p.requestmove(cmd[0] + ' ' + ''.join(cmd[1:]))
     else:
