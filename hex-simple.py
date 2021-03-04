@@ -648,9 +648,9 @@ class Position: # hex board
 
     if self.miai_connected(optm):
       return '', calls, set()
-    if self.miai_connected(ptm):
-      ws = self.get_all_miai_ws(ptm)
-      return next(iter(ws)), calls, ws
+    #if self.miai_connected(ptm):
+      #ws = self.get_all_miai_ws(ptm)
+      #return point_to_alphanum(next(iter(ws)), self.C), calls, ws
 
     mustplay = {i for i in range(len(self.brd)) if self.brd[i] == ECH}
     cells = [self.midpoint()] + self.rank_moves_by_vc(ptm) # self.CELLS
