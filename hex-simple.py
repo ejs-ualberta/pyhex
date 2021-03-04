@@ -243,6 +243,9 @@ class Position: # hex board
               #[WCH, WCH, ECH, ECH, WCH, WCH], self.R, self.C)
     ]
 
+
+  #TODO: If we have a reply to an opponent probe that restores a connection, should we reord that information?
+  #TODO: Generalize miai def'n? For example by using the 2-or rule?
   def get_all_miai_ws(self, ptm):
     conn, side1, side2 = self.connection_graphs[ptm]
     set1, set2 = (self.TOP_ROW, self.BTM_ROW) if ptm == BCH else (self.LFT_COL, self.RGT_COL)
@@ -482,6 +485,7 @@ class Position: # hex board
     return connections, side1, side2
 
   def live_cells(self, ptm):
+    # Warning!!! Slow for larger boards!
     connections, side1, side2 = self.connection_graphs[ptm]
     paths = self.induced_paths_from_to(connections, set(), side1, side2)
     live = set()
@@ -626,13 +630,17 @@ class Position: # hex board
     y = self.R // 2 + self.R % 2 - 1
     return coord_to_point(y, x, self.C)
 
+  def dead(self):
+    inf_cs = set()
+    for i in range(len(self.brd)):
+      for pat in self.dc_patterns:
+        inf_cs = inf_cs.union(pat.matches(self.brd, i))
+    return inf_cs
+
   def captured(self, ptm):
     # Uses patterns to find cells captured by the current player.
     # Does not find all captured cells.
     inf_cs = set()
-    #for i in range(len(self.brd)):
-      #for pat in self.dc_patterns:
-        #inf_cs = inf_cs.union(pat.matches(self.brd, i))
     c_pats = self.bc_patterns
     if ptm == WCH:
       c_pats = self.wc_patterns
@@ -648,9 +656,6 @@ class Position: # hex board
 
     if self.miai_connected(optm):
       return '', calls, set()
-    #if self.miai_connected(ptm):
-      #ws = self.get_all_miai_ws(ptm)
-      #return point_to_alphanum(next(iter(ws)), self.C), calls, ws
 
     mustplay = {i for i in range(len(self.brd)) if self.brd[i] == ECH}
     cells = [self.midpoint()] + self.rank_moves_by_vc(ptm) # self.CELLS
@@ -763,29 +768,48 @@ def interact():
     elif cmd[0]=='z':
       try:
         sz = int(cmd[1])
-        if (sz > 0):
+        if (sz > 1):
           p = Position(sz, sz)
       except:
-        pass
+        print("Command requires natural number > 1.")
     elif cmd[0]=='u':
-      if len(cmd) > 1:
-        for i in range(int(cmd[1])):
-          if not p.undo(): break
+      if len(cmd) == 2:
+        try:
+          for i in range(int(cmd[1])):
+            if not p.undo(): break
+        except:
+          print("Not a natural number.")
       else:
         p.undo()
     elif cmd[0]=='?':
-      if len(cmd)>0:
-        if cmd[1]=='x': 
-          print(p.msg('x'))
-        elif cmd[1]=='o': 
-          print(p.msg('o'))
+      if len(cmd) > 0:
+        if cmd[1] in {BCH, WCH}: 
+          print(p.msg(cmd[1]))
     elif cmd[0] == 'l':
+      if len(cmd) != 2:
+        print("Command requires one argument.")
+        continue
+      if cmd[1] not in {BCH, WCH}:
+        print("Argument must be one of", BCH, WCH)
+        continue
       print(" ".join(sorted([point_to_alphanum(x, p.C) for x in p.live_cells(cmd[1])])))
     elif cmd[0] == "rm":
+      if len(cmd) != 2:
+        print("Command requires one argument.")
+        continue
+      if cmd[1] not in {BCH, WCH}:
+        print("Argument must be one of", BCH, WCH)
+        continue
       p.rank_moves_by_vc(cmd[1], show_ranks=True)
     #elif cmd[0] == "mws":
       #print(p.get_miai_ws(cmd[1]))
     elif cmd[0] == "m":
+      if len(cmd) != 2:
+        print("Command requires one argument.")
+        continue
+      if cmd[1] not in {BCH, WCH}:
+        print("Argument must be one of", BCH, WCH)
+        continue
       ch = cmd[1]
       c = p.get_miai_connections(ch)
       cg, side1, side2 = p.connection_graphs[ch]
@@ -793,9 +817,17 @@ def interact():
       print("Replies:", p.miai_reply[ch])
       print("Miai connected:", c.find(side1)==c.find(side2))
     elif cmd[0] == "c":
+      if len(cmd) != 2:
+        print("Command requires one argument.")
+        continue
+      if cmd[1] not in {BCH, WCH}:
+        print("Argument must be one of", BCH, WCH)
+        continue
       print(p.captured(cmd[1]))
     elif (cmd[0] in PTS):
       p.requestmove(cmd[0] + ' ' + ''.join(cmd[1:]))
+    else:
+      print("Unknown command.")
 
 
 #if __name__ == "__main__":
