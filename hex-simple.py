@@ -360,10 +360,13 @@ class Position: # hex board
   def update_miai_at(self, miai_replies, idx):
     # Adds any new miai at self.brd[idx] to miai_replies
     ch = self.brd[idx]
+    set1, set2 = (self.TOP_ROW, self.BTM_ROW) if ch == BCH else (self.LFT_COL, self.RGT_COL)
     cells = self.miai_patterns[ch].matches(self.brd, idx)
     for cell in cells:
-      nbrs = cells.intersection(self.nbrs[cell])
-      miai_replies[ch][cell] = miai_replies[ch][cell].union(nbrs)
+      for cell2 in cells - {cell}:
+        nbrs = self.nbrs[cell2].intersection(self.nbrs[cell]) - {idx}
+        if (nbrs and self.brd[list(nbrs)[0]] == ch) or (cell in set1 and cell2 in set1) or (cell in set2 and cell2 in set2):
+          miai_replies[ch][cell] = miai_replies[ch][cell].union({cell2})
 
   def get_miai_replies(self):
     miai_replies = {BCH:[set() for i in range(len(self.brd))], WCH:[set() for i in range(len(self.brd))]}
@@ -407,7 +410,6 @@ class Position: # hex board
     self.miai_connections[ptm] = c
 
   def requestmove(self, cmd):
-    c = cmd
     ret, cmd = False, cmd.split()
     if len(cmd) != 2:
       print('invalid command')
@@ -757,7 +759,7 @@ class Position: # hex board
     pretty += ' +\n'
     print(pretty)
 
-  def show_big_board(self, info, colours):
+  def show_big_board(self, info, colours, spc='  '):
     # info is a list with the same length as the board that contains what to place at each cell.
     # colours is a list the same length as info. If an entry is None, use the default colour, otherwise use the colour in the entry.
     def paint(s, colour=None):
@@ -768,7 +770,6 @@ class Position: # hex board
         return pt
       return s
 
-    spc = '  '
     hs = ' ' * (len(spc)//2)
     rem = len(spc)%2
     pretty = '\n  ' + hs + rem*' '
@@ -810,9 +811,11 @@ class Position: # hex board
         else:
           info[i] = point_to_alphanum(pos, self.C)
         colours[i] = miai_colour
+      elif self.brd[i] == ECH:
+        mr = [r for r in self.miai_reply[ch][i] if self.brd[r] == ECH]
+        if mr:
+          info[i] = point_to_alphanum(mr[0], self.C)
     self.show_big_board(info, colours)
-    print("Connections:", c);
-    print("Replies:", self.miai_reply[ch])
     print("Miai connected:", c.find(side1)==c.find(side2))
 
   def undo(self):  # pop last meta-move
