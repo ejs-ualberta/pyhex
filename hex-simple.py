@@ -757,6 +757,51 @@ class Position: # hex board
     pretty += ' +\n'
     print(pretty)
 
+  def show_big_board(self, info):
+    def paint(s):
+      pt = ''
+      for j in s:
+        if j in PTS:      pt += stonecolors[PTS.find(j)] + j + colorend
+        elif j.isalnum(): pt += textcolor + j + colorend
+        else:             pt += j
+      return pt
+
+    spc = '  '
+    hs = ' ' * (len(spc)//2)
+    rem = len(spc)%2
+    pretty = '\n  ' + hs + rem*' '
+    for c in range(self.C): # columns
+      pretty += spc + paint(chr(ord('a')+c))
+    pretty += '\n'*(len(spc)//2)
+    pretty += '\n '+ spc + '+' + spc
+    for c in range(self.C): # columns
+      pretty += paint(BCH) + spc
+    pretty += '+\n'
+    pretty += '\n'*(len(spc)//2)
+    for j in range(self.R): # rows
+      n = str(1+j)
+      pretty += spc*(j//2) + hs*(j%2) + ' '*rem + ' '*(len(hs)+rem) + paint(n) + ' '*(len(spc)-len(n)+1) + paint(WCH) + ' '*(len(hs)+rem)
+      for k in range(self.C): # columns
+        item = info[coord_to_point(j,k,self.C)]
+        pretty += ' '*(len(hs) - len(item)//2) + paint(item) + ' '*(len(hs)+rem - len(item)//2 - len(item)%2 + 1)
+      pretty += hs + paint(WCH) + '\n'
+      pretty += '\n'*(len(spc)//2)
+
+    pretty += spc*(self.R//2) + hs*(self.R%2) + ' '*rem + ' '*(len(hs)+rem) + spc + ' ' + '+'
+    for c in range(self.C):
+      pretty += spc + paint(BCH)
+    pretty += spc + '+\n'
+    print(pretty)
+
+  def show_miai_info(self, ch):
+      c = self.miai_connections[ch]
+      conn, side1, side2 = self.connection_graphs[ch]
+      info = ['.'] * (self.R * self.C + 2)
+      self.show_big_board(info)
+      print("Connections:", c);
+      print("Replies:", self.miai_reply[ch])
+      print("Miai connected:", c.find(side1)==c.find(side2))
+
   def undo(self):  # pop last meta-move
     if not self.H:
       print('\n    original position,  nothing to undo\n')
@@ -845,18 +890,8 @@ def interact():
       #print(p.get_miai_ws(cmd[1]))
 
     elif cmd[0] == "m":
-      if len(cmd) != 2:
-        print("Command requires one argument.")
-        continue
-      if cmd[1] not in {BCH, WCH}:
-        print("Argument must be one of", BCH, WCH)
-        continue
-      ch = cmd[1]
-      c = p.get_miai_connections(ch)
-      cg, side1, side2 = p.connection_graphs[ch]
-      print("Connections:", c)
-      print("Replies:", p.miai_reply[ch])
-      print("Miai connected:", c.find(side1)==c.find(side2))
+      if len(cmd) == 2 and cmd[1] in {WCH, BCH}:
+        p.show_miai_info(cmd[1])
 
     elif cmd[0] == "c":
       dead = p.dead()
