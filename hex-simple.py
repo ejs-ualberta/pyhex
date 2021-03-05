@@ -1,7 +1,7 @@
 """
 negamax small-board hex solver
 """
-from copy import copy, deepcopy
+from copy import deepcopy
 import time
 import math
 from collections import deque
@@ -16,7 +16,7 @@ EMPTY, BLACK, WHITE = 0, 1, 2
 ECH, BCH, WCH = PTS[EMPTY], PTS[BLACK], PTS[WHITE]
 
 
-def oppCH(ch): 
+def oppCH(ch):
   if ch== BCH: return WCH
   elif ch== WCH: return BCH
   else: assert(False)
@@ -757,50 +757,63 @@ class Position: # hex board
     pretty += ' +\n'
     print(pretty)
 
-  def show_big_board(self, info):
-    def paint(s):
-      pt = ''
-      for j in s:
-        if j in PTS:      pt += stonecolors[PTS.find(j)] + j + colorend
-        elif j.isalnum(): pt += textcolor + j + colorend
-        else:             pt += j
-      return pt
+  def show_big_board(self, info, colours):
+    # info is a list with the same length as the board that contains what to place at each cell.
+    # colours is a list the same length as info. If an entry is None, use the default colour, otherwise use the colour in the entry.
+    def paint(s, colour=None):
+      if colour:
+        pt = ''
+        for j in s:
+          pt += colour + j + colorend
+        return pt
+      return s
 
     spc = '  '
     hs = ' ' * (len(spc)//2)
     rem = len(spc)%2
     pretty = '\n  ' + hs + rem*' '
     for c in range(self.C): # columns
-      pretty += spc + paint(chr(ord('a')+c))
+      pretty += spc + paint(chr(ord('a')+c), textcolor)
     pretty += '\n'*(len(spc)//2)
     pretty += '\n '+ spc + '+' + spc
     for c in range(self.C): # columns
-      pretty += paint(BCH) + spc
+      pretty += paint(BCH, stonecolors[BLACK]) + spc
     pretty += '+\n'
     pretty += '\n'*(len(spc)//2)
     for j in range(self.R): # rows
       n = str(1+j)
-      pretty += spc*(j//2) + hs*(j%2) + ' '*rem + ' '*(len(hs)+rem) + paint(n) + ' '*(len(spc)-len(n)+1) + paint(WCH) + ' '*(len(hs)+rem)
+      pretty += spc*(j//2) + hs*(j%2) + ' '*rem + ' '*(len(hs)+rem) + paint(n, textcolor) + ' '*(len(spc)-len(n)+1) + paint(WCH, stonecolors[WHITE]) + ' '*(len(hs)+rem)
       for k in range(self.C): # columns
         item = info[coord_to_point(j,k,self.C)]
-        pretty += ' '*(len(hs) - len(item)//2) + paint(item) + ' '*(len(hs)+rem - len(item)//2 - len(item)%2 + 1)
-      pretty += hs + paint(WCH) + '\n'
+        pretty += ' '*(len(hs) - len(item)//2) + paint(item, colours[coord_to_point(j,k,self.C)]) + ' '*(len(hs)+rem - len(item)//2 - len(item)%2 + 1)
+      pretty += hs + paint(WCH, stonecolors[WHITE]) + '\n'
       pretty += '\n'*(len(spc)//2)
 
     pretty += spc*(self.R//2) + hs*(self.R%2) + ' '*rem + ' '*(len(hs)+rem) + spc + ' ' + '+'
     for c in range(self.C):
-      pretty += spc + paint(BCH)
+      pretty += spc + paint(BCH, stonecolors[BLACK])
     pretty += spc + '+\n'
     print(pretty)
 
   def show_miai_info(self, ch):
-      c = self.miai_connections[ch]
-      conn, side1, side2 = self.connection_graphs[ch]
-      info = ['.'] * (self.R * self.C + 2)
-      self.show_big_board(info)
-      print("Connections:", c);
-      print("Replies:", self.miai_reply[ch])
-      print("Miai connected:", c.find(side1)==c.find(side2))
+    sides = {BCH:["T", "B"],WCH:["L", "R"]}
+    miai_colour = escape_ch + '0;31m'
+    c = self.miai_connections[ch]
+    conn, side1, side2 = self.connection_graphs[ch]
+    info = [ECH] * (self.R * self.C + 2)
+    colours = [None for i in info]
+    for i in range(len(self.brd)):
+      if self.brd[i] == ch:
+        pos = c.find(i)
+        if pos >= len(self.brd):
+          info[i] = sides[ch][pos % len(self.brd)]
+        else:
+          info[i] = point_to_alphanum(pos, self.C)
+        colours[i] = miai_colour
+    self.show_big_board(info, colours)
+    print("Connections:", c);
+    print("Replies:", self.miai_reply[ch])
+    print("Miai connected:", c.find(side1)==c.find(side2))
 
   def undo(self):  # pop last meta-move
     if not self.H:
