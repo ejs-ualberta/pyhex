@@ -1,6 +1,6 @@
 from copy import copy
 
-from board import Position, BCH
+from board import Position, BCH, WCH
 
 
 conj = "and"
@@ -49,7 +49,8 @@ class AndOrAutoTree:
         return str(self.tree)
 
 
-    def __init__(self, exp, rows, cols):
+    def __init__(self, exp, rows, cols, ch):
+        self.ch = ch
         self.rows = rows
         self.cols = cols
         ops = {p_left, p_right}
@@ -114,12 +115,15 @@ class AndOrAutoTree:
         return r
 
 
+    # TODO: needs a new algorithm for looking at all the root to leaf paths. This one is too slow.
     def _is_satisfying(self, board, root):
-        if not board.requestmove(BCH + ' ' + root.move):
+        if board.has_win(self.ch):
+            return True
+        if not board.requestmove(self.ch + ' ' + root.move):
             return False
         #board.showboard()
         if not root.children:
-            w = board.has_win(BCH)
+            w = board.has_win(self.ch)
             if not w:
                 print("Not satisfying:")
                 board.showboard()
@@ -186,6 +190,7 @@ class AndOrAutoTree:
 
 
 bs_v = "boardsize"
+#TODO: All of this
 class Parser:
     def __init__(self, s, r_pn):
         self.var = {bs_v: None}
@@ -327,7 +332,7 @@ class Parser:
 #tr = "(and b2 (or b1 c1) (or a3 b3))"
 #tr = "(and a2 (or a1 b1) (or a3 (and c2 (or b2 c1) (or b3 c3))))"
 
-#autotr = AndOrAutoTree(tr, 4, 4)
+#autotr = AndOrAutoTree(tr, 3, 3, BCH)
 #print(autotr)
 #print()
 #print(autotr.expand(autotr.tree))
@@ -377,5 +382,5 @@ p = Parser('''
 p.parse()
 print(p.translated)
 size = int(p.var[bs_v])
-autotr = AndOrAutoTree(p.translated, size, size)
+autotr = AndOrAutoTree(p.translated, size, size, BCH)
 print(autotr.verify())
