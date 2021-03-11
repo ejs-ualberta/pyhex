@@ -436,13 +436,13 @@ class Position: # hex board
   def move(self, ch, where):
     self.H.append((self.brd[where], where, self.connection_graphs, deepcopy(self.miai_reply), deepcopy(self.miai_connections)))
     self.brd = change_str(self.brd, where, ch)
+    self.connection_graphs = {BCH:self.get_connections(BCH), WCH:self.get_connections(WCH)}
     if ch != ECH:
       self.update_miai_at(self.miai_reply, where)
       self.update_miai_connections(ch, where)
     else:
       self.miai_reply = self.get_miai_replies()
       self.miai_connections = {BCH:self.get_miai_connections(BCH), WCH:self.get_miai_connections(WCH)}
-    self.connection_graphs = {BCH:self.get_connections(BCH), WCH:self.get_connections(WCH)}
 
   def has_win(self, ptm):
     connections, side1, side2 = self.connection_graphs[ptm]
@@ -673,30 +673,35 @@ class Position: # hex board
     return inf_cs
 
   def fill_cells(self, cells, ptm):
+    i = 0
     for c in cells:
       self.move(ptm, c)
+      i += 1
+    return i
 
   def win_move(self, ptm): # assume neither player has won yet
     optm = oppCH(ptm) 
     calls = 1
     ovc = set()
-    dead = self.dead()
-    capp = self.captured(ptm)
-    capo = self.captured(optm)
-    n_undo = len(dead) + len(capp) + len(capo)
+
+    n_undo = 0
+    while True:
+      d = self.dead()
+      cp = self.captured(ptm)
+      co = self.captured(optm)
+      n_undo += self.fill_cells(d, ptm)
+      n_undo += self.fill_cells(cp, ptm)
+      n_undo += self.fill_cells(co, optm)
+      if not (d and cp and co):
+        break
 
     if self.miai_connected(optm):
+      for i in range(n_undo):
+        self.undo()
       return '', calls, set()
-
-    self.fill_cells(dead, ptm)
-    self.fill_cells(capp, ptm)
-    self.fill_cells(capo, optm)
 
     mustplay = {i for i in range(len(self.brd)) if self.brd[i] == ECH}
     cells = [self.midpoint()] + self.rank_moves_by_vc(ptm) # self.CELLS
-
-    for i in range(n_undo):
-      self.undo()
 
     while len(mustplay) > 0:
       move = None
@@ -714,6 +719,8 @@ class Position: # hex board
         # Only get miai ws if there is a nontrivial win
         if not self.has_win(ptm):
           ws = self.get_all_miai_ws(ptm)
+        for i in range(n_undo):
+          self.undo()
         self.undo()
         return pt, calls, ws.union({move})
 
@@ -723,11 +730,16 @@ class Position: # hex board
       if not omv: # opponent has no winning response to ptm move
         oset.add(move)
         pt = point_to_alphanum(move, self.C)
+        for i in range(n_undo):
+          self.undo()
         self.undo()
         return pt, calls, oset
 
       ovc = ovc.union(oset)
       mustplay = mustplay.intersection(oset)
+      self.undo()
+
+    for i in range(n_undo):
       self.undo()
     return '', calls, ovc
 
@@ -935,5 +947,7 @@ def interact():
       print("Unknown command.")
 
 
-#if __name__ == "__main__":
-interact()
+if __name__ == "__main__":
+  interact()
+
+#interact()
