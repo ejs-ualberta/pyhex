@@ -692,7 +692,7 @@ class Position: # hex board
       n_undo += self.fill_cells(d, ptm)
       n_undo += self.fill_cells(cp, ptm)
       n_undo += self.fill_cells(co, optm)
-      if not (d and cp and co):
+      if not (d or cp or co):
         break
 
     if self.miai_connected(optm):
@@ -922,17 +922,26 @@ def interact():
         p.show_miai_info(cmd[1])
 
     elif cmd[0] == "c":
-      dead = p.dead()
-      capb = p.captured(BCH)
-      capw = p.captured(WCH)
+      dead = set()
+      capb = set()
+      capw = set()
+      n_undo = 0
+      while True:
+        d = p.dead()
+        dead = dead.union(d)
+        cb = p.captured(BCH)
+        capb = capb.union(cb)
+        cw = p.captured(WCH)
+        capw = capw.union(cw)
+        n_undo += p.fill_cells(d, BCH)
+        n_undo += p.fill_cells(cb, BCH)
+        n_undo += p.fill_cells(cw, WCH)
+        if not (d or cb or cw):
+          break
       print()
       print("Dead:", " ".join([point_to_alphanum(x, p.C) for x in dead]))
       print("BCap:", " ".join([point_to_alphanum(x, p.C) for x in capb]))
       print("WCap:", " ".join([point_to_alphanum(x, p.C) for x in capw]))
-      n_undo = len(dead) + len(capb) + len(capw)
-      p.fill_cells(dead, BCH)
-      p.fill_cells(capb, BCH)
-      p.fill_cells(capw, WCH)
       p.showboard()
       for i in range(n_undo):
         p.undo()
@@ -950,4 +959,4 @@ def interact():
 if __name__ == "__main__":
   interact()
 
-#interact()
+interact()
