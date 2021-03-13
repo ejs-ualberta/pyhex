@@ -588,18 +588,25 @@ class Position: # hex board
           seen[v] += 1
         q.append(parents[v])
 
-    seen.pop(node)
-    seen.pop(end)
+    if node in seen:
+      seen.pop(node)
+    if end in seen:
+      seen.pop(end)
     #counts = sorted([(seen[key], key) for key in seen.keys()])
     #return [k[1] for k in counts]
     return seen.keys()
 
-  def rank_moves_by_vc(self, ptm, show_ranks=False):
+  def rank_moves_by_vc(self, ptm, show_ranks=False, recurse=True):
     # Assign a score to each node based on whether it is virtually connected to other nodes/sides and
     # or whether it is in a shortest winning path
     set1, set2 = (self.TOP_ROW, self.BTM_ROW) if ptm == BCH else (self.LFT_COL, self.RGT_COL)
     optm = oppCH(ptm)
     score = [0] * len(self.brd)
+
+    if recurse:
+      opp_rnk = self.rank_moves_by_vc(optm, recurse=False)
+      for i in range(len(opp_rnk)):
+        score[opp_rnk[i]] += (len(opp_rnk)-i)/len(opp_rnk)
 
     if self.H:
       miai_replies = self.miai_reply[ptm][self.H[-1][1]]
@@ -685,9 +692,11 @@ class Position: # hex board
     ovc = set()
 
     n_undo = 0
+    pcap = set()
     while True:
       d = self.dead()
       cp = self.captured(ptm)
+      pcap = pcap.union(cp)
       co = self.captured(optm)
       n_undo += self.fill_cells(d, ptm)
       n_undo += self.fill_cells(cp, ptm)
@@ -722,7 +731,7 @@ class Position: # hex board
         for i in range(n_undo):
           self.undo()
         self.undo()
-        return pt, calls, ws.union({move})
+        return pt, calls, ws.union({move}).union(pcap)
 
       omv, ocalls, oset = self.win_move(optm)
 
@@ -959,4 +968,4 @@ def interact():
 if __name__ == "__main__":
   interact()
 
-interact()
+#interact()

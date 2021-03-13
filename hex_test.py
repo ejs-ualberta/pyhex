@@ -1,4 +1,5 @@
 import unittest
+import time
 from hex_simple import Position, BCH, ECH, WCH
 
 class TestHex(unittest.TestCase):
@@ -44,12 +45,14 @@ class TestHex(unittest.TestCase):
         pos = Position(5,5)
         for i in range(25):
             pos.move(BCH, i)
+            st = time.time()
             print("Moved to", i)
             if i in {0, 1, 2, 3, 5, 10, 24, 23, 22, 21, 19, 14}:
                 self.assertTrue(pos.win_move(WCH)[0])
             else:
                 self.assertFalse(pos.win_move(WCH)[0])
             pos.undo()
+            print("%.4f" % (time.time() - st) + 's \n')
                 
                     
 
