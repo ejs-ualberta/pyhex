@@ -686,23 +686,27 @@ class Position: # hex board
       i += 1
     return i
 
-  def win_move(self, ptm): # assume neither player has won yet
+  def win_move(self, ptm, captured={BCH:set(), WCH:set()}): # assume neither player has won yet
     optm = oppCH(ptm) 
     calls = 1
     ovc = set()
 
     n_undo = 0
     pcap = set()
+    ocap = set()
     while True:
       d = self.dead()
       cp = self.captured(ptm)
       pcap = pcap.union(cp)
       co = self.captured(optm)
+      ocap = ocap.union(co)
       n_undo += self.fill_cells(d, ptm)
       n_undo += self.fill_cells(cp, ptm)
       n_undo += self.fill_cells(co, optm)
       if not (d or cp or co):
         break
+    pcap = pcap.union(captured[ptm])
+    ocap = ocap.union(captured[optm])
 
     if self.miai_connected(optm):
       for i in range(n_undo):
@@ -710,7 +714,7 @@ class Position: # hex board
       return '', calls, set()
 
     mustplay = {i for i in range(len(self.brd)) if self.brd[i] == ECH}
-    cells = [self.midpoint()] + self.rank_moves_by_vc(ptm) # self.CELLS
+    cells = self.rank_moves_by_vc(ptm) # self.CELLS
 
     while len(mustplay) > 0:
       move = None
@@ -733,7 +737,7 @@ class Position: # hex board
         self.undo()
         return pt, calls, ws.union({move}).union(pcap)
 
-      omv, ocalls, oset = self.win_move(optm)
+      omv, ocalls, oset = self.win_move(optm, {ptm:pcap, optm:ocap})
 
       calls += ocalls
       if not omv: # opponent has no winning response to ptm move
