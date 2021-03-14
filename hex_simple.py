@@ -295,7 +295,7 @@ class Position: # hex board
         gmws_helper(nd, ops)
         visited.remove(nd)
     gmws_helper(side1, options)
-    return winset - occ - {side1, side2}
+    return winset - {side1, side2}
 
   def get_miai_ws(self, ptm):
     conn, side1, side2 = self.connection_graphs[ptm]
@@ -322,7 +322,7 @@ class Position: # hex board
           return ws
         visited.remove(nd)
       return set()
-    return gmws_helper(side1, options) - occ - {side1, side2}
+    return gmws_helper(side1, options) - {side1, side2}
 
   def miai_connected(self, ptm):
     # Check efficiently whether ptm stones are miai connected
@@ -686,27 +686,21 @@ class Position: # hex board
       i += 1
     return i
 
-  def win_move(self, ptm, captured={BCH:set(), WCH:set()}): # assume neither player has won yet
+  def win_move(self, ptm): # assume neither player has won yet
     optm = oppCH(ptm) 
     calls = 1
     ovc = set()
 
     n_undo = 0
-    pcap = set()
-    ocap = set()
     while True:
       d = self.dead()
       cp = self.captured(ptm)
-      pcap = pcap.union(cp)
       co = self.captured(optm)
-      ocap = ocap.union(co)
       n_undo += self.fill_cells(d, ptm)
       n_undo += self.fill_cells(cp, ptm)
       n_undo += self.fill_cells(co, optm)
       if not (d or cp or co):
         break
-    pcap = pcap.union(captured[ptm])
-    ocap = ocap.union(captured[optm])
 
     if self.miai_connected(optm):
       for i in range(n_undo):
@@ -715,6 +709,9 @@ class Position: # hex board
 
     mustplay = {i for i in range(len(self.brd)) if self.brd[i] == ECH}
     cells = self.rank_moves_by_vc(ptm) # self.CELLS
+
+    if not self.H:
+      cells = [self.midpoint()] + cells
 
     while len(mustplay) > 0:
       move = None
@@ -735,9 +732,9 @@ class Position: # hex board
         for i in range(n_undo):
           self.undo()
         self.undo()
-        return pt, calls, ws.union({move}).union(pcap)
+        return pt, calls, ws.union({move})
 
-      omv, ocalls, oset = self.win_move(optm, {ptm:pcap, optm:ocap})
+      omv, ocalls, oset = self.win_move(optm)
 
       calls += ocalls
       if not omv: # opponent has no winning response to ptm move
@@ -972,4 +969,4 @@ def interact():
 if __name__ == "__main__":
   interact()
 
-#interact()
+interact()
