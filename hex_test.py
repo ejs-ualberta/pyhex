@@ -43,7 +43,7 @@ class TestHex(unittest.TestCase):
         self.assertFalse(pos.win_move(WCH)[0])
 
         pos = Position(5,5)
-        for i in range(21, 25):
+        for i in range(25):
             pos.move(BCH, i)
             st = time.time()
             print("Moved to", i)

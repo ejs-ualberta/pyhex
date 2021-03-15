@@ -270,6 +270,34 @@ class Position: # hex board
 
   #TODO: If we have a reply to an opponent probe that restores a connection, should we record that information?
   #TODO: Generalize miai def'n? For example by using the 2-or rule?
+  def get_all_miai_ws(self, ptm):
+    conn, side1, side2 = self.connection_graphs[ptm]
+    set1, set2 = (self.TOP_ROW, self.BTM_ROW) if ptm == BCH else (self.LFT_COL, self.RGT_COL)
+    mc = set()
+    for s in self.miai_reply[ptm]:
+      mc = mc.union(s)
+    occ = {i for i in range(len(self.brd)) if self.brd[i] == ptm}
+    options = occ.union(mc).intersection(conn[side1])
+    visited = set()
+    winset = set()
+    def gmws_helper(node, options):
+      nonlocal winset
+      if node in visited:
+        return
+      visited.add(node)
+      if node in set2:
+        winset = winset.union(visited)
+      for nd in options:
+        if nd in visited:
+          continue
+        miai_cells = self.miai_patterns[ptm].matches(self.brd, nd)
+        ops = self.nbrs[nd].intersection(occ).union(miai_cells) - {node}
+        gmws_helper(nd, ops)
+        visited.remove(nd)
+    gmws_helper(side1, options)
+    return winset - {side1, side2}
+
+  '''
   def get_all_miai_ws(self, ptm):#, captured):
     conn, side1, side2 = self.connection_graphs[ptm]
     set1, set2 = (self.TOP_ROW, self.BTM_ROW) if ptm == BCH else (self.LFT_COL, self.RGT_COL)
@@ -296,6 +324,7 @@ class Position: # hex board
     gmws_helper(side1, options)
     #cu = winset & captured
     return (winset - {side1, side2})
+  '''
 
   def miai_connected(self, ptm):
     # Check efficiently whether ptm stones are miai connected
@@ -666,7 +695,7 @@ class Position: # hex board
       i += 1
     return i
 
-  def win_move(self, ptm, captured={BCH:set(), WCH:set()}): # assume neither player has won yet
+  def win_move(self, ptm): # assume neither player has won yet
     optm = oppCH(ptm) 
     calls = 1
     ovc = set()
@@ -701,8 +730,6 @@ class Position: # hex board
           move = mv
           cells = cells[i+1:]
           break
-      if not move:
-        break
 
       self.move(ptm, move)
 
