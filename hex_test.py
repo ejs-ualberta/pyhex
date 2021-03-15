@@ -21,7 +21,7 @@ class TestHex(unittest.TestCase):
         pos.move(ECH, 12)
         self.assertFalse(pos.miai_connected(BCH))
         self.assertTrue(pos.miai_connected(WCH))
-        self.assertEqual(pos.get_all_miai_ws(WCH), {4, 9, 7, 12, 10, 15})
+        self.assertEqual(pos.get_all_miai_ws(WCH), {4, 9, 7, 8, 11, 12, 10, 15})
 
 
     def test_pattern(self):
@@ -43,7 +43,7 @@ class TestHex(unittest.TestCase):
         self.assertFalse(pos.win_move(WCH)[0])
 
         pos = Position(5,5)
-        for i in range(25):
+        for i in range(21, 25):
             pos.move(BCH, i)
             st = time.time()
             print("Moved to", i)
