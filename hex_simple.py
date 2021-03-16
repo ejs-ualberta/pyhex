@@ -307,7 +307,7 @@ class Position: # hex board
     for s in self.miai_reply[ptm]:
       mc = mc.union(s)
     occ = {i for i in range(len(self.brd)) if self.brd[i] == ptm}
-    options = (occ | mc) & conn[side1]
+    options = (occ | mc) & set1
     visited = set()
     winset = set()
     def gmws_helper(node, options):
@@ -444,20 +444,15 @@ class Position: # hex board
     return True
 
   def move(self, ch, where):
-    self.H.append((self.brd[where], where, self.connection_graphs, deepcopy(self.miai_reply), deepcopy(self.miai_connections)))
+    self.H.append((self.brd[where], where, deepcopy(self.miai_reply), deepcopy(self.miai_connections)))
     self.brd = change_str(self.brd, where, ch)
-    self.connection_graphs = {BCH:self.get_connections(BCH), WCH:self.get_connections(WCH)}
+    #self.connection_graphs = {BCH:self.get_connections(BCH), WCH:self.get_connections(WCH)}
     if ch != ECH:
       self.update_miai_at(self.miai_reply, where)
       self.update_miai_connections(ch, where)
     else:
       self.miai_reply = self.get_miai_replies()
       self.miai_connections = {BCH:self.get_miai_connections(BCH), WCH:self.get_miai_connections(WCH)}
-
-  def has_win(self, ptm):
-    connections, side1, side2 = self.connection_graphs[ptm]
-    # Check if the special side nodes are adjacent in the connection graph
-    return side1 in connections[side2]
 
   def connected_cells(self, pt, ptm, side1, side2):
     # Find all ptm-occupied cells connected to a particular ptm-occupied cell. Cells are connected if
@@ -522,7 +517,7 @@ class Position: # hex board
 
   def live_cells(self, ptm):
     # Warning!!! Slow for larger boards!
-    connections, side1, side2 = self.connection_graphs[ptm]
+    connections, side1, side2 = self.get_connections(ptm)
     paths = self.induced_paths_from_to(connections, set(), side1, side2)
     live = set()
     for p in paths:
@@ -656,7 +651,7 @@ class Position: # hex board
           elif self.brd[list(s)[0]] == ptm:
             score[i] += 1
 
-    spft = self.shortest_paths_from_to(*self.connection_graphs[ptm])
+    spft = self.shortest_paths_from_to(*self.get_connections(ptm))
     # Scores are arbitrary constants that seemed to work well
     for i in spft:
       score[i] += 5
@@ -859,13 +854,13 @@ class Position: # hex board
       print('\n    original position,  nothing to undo\n')
       return False
     else:
-      ch, where, self.connection_graphs, self.miai_reply, self.miai_connections = self.H.pop()
+      ch, where, self.miai_reply, self.miai_connections = self.H.pop()
       self.brd = change_str(self.brd, where, ch)
     return True
 
   def msg(self, ch):
-    if self.has_win('x'): return('x has won')
-    elif self.has_win('o'): return('o has won')
+    if self.miai_connected('x'): return('x has won')
+    elif self.miai_connected('o'): return('o has won')
     else:
       st = time.time()
       wm, calls, vc = self.win_move(ch, {i for i in range(len(self.brd)) if self.brd[i] != ECH})
