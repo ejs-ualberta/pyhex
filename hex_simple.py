@@ -153,6 +153,7 @@ class Pattern:
     # Obtuse corners match any colour
     return (x == self.C and z == -1) or (x == -1 and z == self.R)
 
+
 class Position: # hex board 
   def __init__(self, rows, cols):
     self.R, self.C, self.n = rows, cols, rows*cols
@@ -672,6 +673,8 @@ class Position: # hex board
   def dead(self):
     inf_cs = set()
     for i in range(len(self.brd)):
+      if self.brd[i] != ECH:
+        continue
       for pat in self.dc_patterns:
         inf_cs = inf_cs.union(pat.matches(self.brd, i))
     return inf_cs
@@ -684,6 +687,8 @@ class Position: # hex board
     if ptm == WCH:
       c_pats = self.wc_patterns
     for i in range(len(self.brd)):
+      if self.brd[i] != ECH:
+        continue
       for pat in c_pats:
         inf_cs = inf_cs.union(pat.matches(self.brd, i))
     return inf_cs
