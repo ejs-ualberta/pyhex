@@ -270,6 +270,7 @@ class Position: # hex board
 
   #TODO: If we have a reply to an opponent probe that restores a connection, should we record that information?
   #TODO: Generalize miai def'n? For example by using the 2-or rule?
+  '''
   def get_all_miai_ws(self, ptm):
     conn, side1, side2 = self.connection_graphs[ptm]
     set1, set2 = (self.TOP_ROW, self.BTM_ROW) if ptm == BCH else (self.LFT_COL, self.RGT_COL)
@@ -323,8 +324,7 @@ class Position: # hex board
         visited.remove(nd)
     gmws_helper(side1, options)
     #cu = winset & captured
-    return (winset - {side1, side2})
-  '''
+    return winset - {side1, side2}
 
   def miai_connected(self, ptm):
     # Check efficiently whether ptm stones are miai connected
@@ -695,7 +695,9 @@ class Position: # hex board
       i += 1
     return i
 
-  def win_move(self, ptm): # assume neither player has won yet
+  def win_move(self, ptm, moves):
+    # assume neither player has won yet
+    # moves is a set contioning the moves that have been played already
     optm = oppCH(ptm) 
     calls = 1
     ovc = set()
@@ -735,16 +737,13 @@ class Position: # hex board
 
       if self.miai_connected(ptm): # Also true if has_win
         pt = point_to_alphanum(move, self.C)
-        ws = set()
-        # Only get miai ws if there is a nontrivial win
-        if not self.has_win(ptm):
-          ws = self.get_all_miai_ws(ptm)
+        ws = self.get_all_miai_ws(ptm) - moves
         for i in range(n_undo):
           self.undo()
         self.undo()
         return pt, calls, ws.union({move})
 
-      omv, ocalls, oset = self.win_move(optm)
+      omv, ocalls, oset = self.win_move(optm, moves | {move})
 
       calls += ocalls
       if not omv: # opponent has no winning response to ptm move
@@ -864,7 +863,7 @@ class Position: # hex board
     elif self.has_win('o'): return('o has won')
     else:
       st = time.time()
-      wm, calls, vc = self.win_move(ch)
+      wm, calls, vc = self.win_move(ch, {i for i in range(len(self.brd)) if self.brd[i] != ECH})
       out = '\n' + ch + '-to-move: '
       out += (ch if wm else oppCH(ch)) + ' wins' 
       out += (' ... ' if wm else ' ') + wm + '\n'
