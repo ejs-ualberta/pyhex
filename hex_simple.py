@@ -2,6 +2,7 @@
 negamax small-board hex solver
 """
 from copy import deepcopy
+import sgfmill
 import time
 import math
 from collections import deque
@@ -245,15 +246,15 @@ class Position: # hex board
               [BCH, BCH, ECH, ECH, BCH, BCH], self.R, self.C),
       # x * * x
       #  x x x
-      #Pattern([[-1, 1, 0], [0, 0, 0], [1, -1, 0], [2, -2, 0], [-1, 0, 1], [0, -1, 1], [1, -2, 1]],
-      #        [BCH, ECH, ECH, BCH, BCH, BCH, BCH], self.R, self.C),
+      Pattern([[-1, 1, 0], [0, 0, 0], [1, -1, 0], [2, -2, 0], [-1, 0, 1], [0, -1, 1], [1, -2, 1]],
+              [BCH, ECH, ECH, BCH, BCH, BCH, BCH], self.R, self.C),
       # o
       #  * * x
       # x x x
-      #Pattern([[0, 1, -1], [0, 0, 0], [1, -1, 0], [2, -2, 0], [-1, 0, 1], [0, -1, 1], [1, -2, 1]],
-      #        [WCH, ECH, ECH, BCH, BCH, BCH, BCH], self.R, self.C),
-      #Pattern([[1, 0, -1], [0, 0, 0], [-1, 1, 0], [-2, 2, 0], [0, -1, 1], [-1, 0, 1], [-2, 1, 1]],
-      #        [WCH, ECH, ECH, BCH, BCH, BCH, BCH], self.R, self.C),
+      Pattern([[0, 1, -1], [0, 0, 0], [1, -1, 0], [2, -2, 0], [-1, 0, 1], [0, -1, 1], [1, -2, 1]],
+              [WCH, ECH, ECH, BCH, BCH, BCH, BCH], self.R, self.C),
+      Pattern([[1, 0, -1], [0, 0, 0], [-1, 1, 0], [-2, 2, 0], [0, -1, 1], [-1, 0, 1], [-2, 1, 1]],
+              [WCH, ECH, ECH, BCH, BCH, BCH, BCH], self.R, self.C),
     ]
 
     # white captured patterns
@@ -279,15 +280,15 @@ class Position: # hex board
               [WCH, WCH, ECH, ECH, WCH, WCH], self.R, self.C),
       # o * * o
       #  o o o
-      #Pattern([[-1, 1, 0], [0, 0, 0], [1, -1, 0], [2, -2, 0], [-1, 0, 1], [0, -1, 1], [1, -2, 1]],
-      #        [WCH, ECH, ECH, WCH, WCH, WCH, WCH], self.R, self.C),
+      Pattern([[-1, 1, 0], [0, 0, 0], [1, -1, 0], [2, -2, 0], [-1, 0, 1], [0, -1, 1], [1, -2, 1]],
+              [WCH, ECH, ECH, WCH, WCH, WCH, WCH], self.R, self.C),
       # x
       #  * * o
       # o o o
-      #Pattern([[0, 1, -1], [0, 0, 0], [1, -1, 0], [2, -2, 0], [-1, 0, 1], [0, -1, 1], [1, -2, 1]],
-      #        [BCH, ECH, ECH, WCH, WCH, WCH, WCH], self.R, self.C),
-      #Pattern([[1, 0, -1], [0, 0, 0], [-1, 1, 0], [-2, 2, 0], [0, -1, 1], [-1, 0, 1], [-2, 1, 1]],
-      #        [BCH, ECH, ECH, WCH, WCH, WCH, WCH], self.R, self.C),
+      Pattern([[0, 1, -1], [0, 0, 0], [1, -1, 0], [2, -2, 0], [-1, 0, 1], [0, -1, 1], [1, -2, 1]],
+              [BCH, ECH, ECH, WCH, WCH, WCH, WCH], self.R, self.C),
+      Pattern([[1, 0, -1], [0, 0, 0], [-1, 1, 0], [-2, 2, 0], [0, -1, 1], [-1, 0, 1], [-2, 1, 1]],
+              [BCH, ECH, ECH, WCH, WCH, WCH, WCH], self.R, self.C),
     ]
 
 
@@ -739,6 +740,12 @@ class Position: # hex board
       for i in range(n_undo):
         self.undo()
       return '', calls, set()
+
+    if self.miai_connected(ptm):
+      ws = self.get_all_miai_ws(ptm) - moves
+      for i in range(n_undo):
+        self.undo()
+      return point_to_alphanum(next(iter(ws)), self.C), calls, ws
 
     mustplay = {i for i in range(len(self.brd)) if self.brd[i] == ECH}
     cells = self.rank_moves_by_vc(ptm) # self.CELLS
