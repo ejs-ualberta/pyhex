@@ -151,7 +151,7 @@ class Pattern:
         return True
     # Empty cells do not match any edge
     # Obtuse corners match any colour
-    return (x == self.C and z == -1) or (x == -1 and z == self.R)
+    return ch != ECH and (x == self.C and z == -1) or (x == -1 and z == self.R)
 
 
 class Position: # hex board 
