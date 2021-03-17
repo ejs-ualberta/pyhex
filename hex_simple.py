@@ -242,7 +242,18 @@ class Position: # hex board
       Pattern([[1, 0, -1], [2, -1, -1], [0, 0, 0], [1, -1, 0], [-1, 0, 1], [0, -1, 1]],
               [BCH, BCH, ECH, ECH, BCH, BCH], self.R, self.C),
       Pattern([[0, 1, -1], [1, 0, -1], [0, 0, 0], [1, -1, 0], [0, -1, 1], [1, -2, 1]],
-              [BCH, BCH, ECH, ECH, BCH, BCH], self.R, self.C)
+              [BCH, BCH, ECH, ECH, BCH, BCH], self.R, self.C),
+      # x * * x
+      #  x x x
+      #Pattern([[-1, 1, 0], [0, 0, 0], [1, -1, 0], [2, -2, 0], [-1, 0, 1], [0, -1, 1], [1, -2, 1]],
+      #        [BCH, ECH, ECH, BCH, BCH, BCH, BCH], self.R, self.C),
+      # o
+      #  * * x
+      # x x x
+      #Pattern([[0, 1, -1], [0, 0, 0], [1, -1, 0], [2, -2, 0], [-1, 0, 1], [0, -1, 1], [1, -2, 1]],
+      #        [WCH, ECH, ECH, BCH, BCH, BCH, BCH], self.R, self.C),
+      #Pattern([[1, 0, -1], [0, 0, 0], [-1, 1, 0], [-2, 2, 0], [0, -1, 1], [-1, 0, 1], [-2, 1, 1]],
+      #        [WCH, ECH, ECH, BCH, BCH, BCH, BCH], self.R, self.C),
     ]
 
     # white captured patterns
@@ -265,7 +276,18 @@ class Position: # hex board
       Pattern([[1, 0, -1], [2, -1, -1], [0, 0, 0], [1, -1, 0], [-1, 0, 1], [0, -1, 1]],
               [WCH, WCH, ECH, ECH, WCH, WCH], self.R, self.C),
       Pattern([[0, 1, -1], [1, 0, -1], [0, 0, 0], [1, -1, 0], [0, -1, 1], [1, -2, 1]],
-              [WCH, WCH, ECH, ECH, WCH, WCH], self.R, self.C)
+              [WCH, WCH, ECH, ECH, WCH, WCH], self.R, self.C),
+      # o * * o
+      #  o o o
+      #Pattern([[-1, 1, 0], [0, 0, 0], [1, -1, 0], [2, -2, 0], [-1, 0, 1], [0, -1, 1], [1, -2, 1]],
+      #        [WCH, ECH, ECH, WCH, WCH, WCH, WCH], self.R, self.C),
+      # x
+      #  * * o
+      # o o o
+      #Pattern([[0, 1, -1], [0, 0, 0], [1, -1, 0], [2, -2, 0], [-1, 0, 1], [0, -1, 1], [1, -2, 1]],
+      #        [BCH, ECH, ECH, WCH, WCH, WCH, WCH], self.R, self.C),
+      #Pattern([[1, 0, -1], [0, 0, 0], [-1, 1, 0], [-2, 2, 0], [0, -1, 1], [-1, 0, 1], [-2, 1, 1]],
+      #        [BCH, ECH, ECH, WCH, WCH, WCH, WCH], self.R, self.C),
     ]
 
 
