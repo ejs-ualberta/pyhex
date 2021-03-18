@@ -2,7 +2,6 @@
 negamax small-board hex solver
 """
 from copy import deepcopy
-import sgfmill
 import time
 import math
 from collections import deque
@@ -900,6 +899,29 @@ class Position: # hex board
       out += "%.4f" % (time.time() - st) + 's \n'
       return out
 
+  def save(self, fname):
+    header = "(;FF[4]GM[11]SZ[%d]\n" % max(self.R, self.C)
+    chrs = {BCH:'B', WCH:'W'}
+    visited = set()
+    sgf = ""
+    for i in range(len(self.H)-1, -1, -1):
+      h = self.H[i]
+      pt = h[1]
+      loc = point_to_alphanum(pt, self.C)
+      ch = self.brd[pt]
+      if ch == ECH or pt in visited:
+        continue
+      visited.add(pt)
+      sgf = ';' + chrs[ch] + '[' + loc + ']' + sgf
+    sgf += '\n)'
+    f = None
+    try:
+      f = open(fname, 'w')
+    except:
+      print("Bad filename")
+      return
+    f.write(header + sgf)
+    f.close()
 
 def printmenu():
   print('  h                              help menu')
@@ -911,6 +933,8 @@ def printmenu():
   print('  . a2                           erase a 2')
   print('  u                                   undo')
   print('  m                      display miai info')
+  print('  sv                  save the game as sgf')
+  print('  ld                  load a game from sgf')
   print('  [return]                            quit')
 
 
@@ -999,6 +1023,23 @@ def interact():
 
     elif (cmd[0] == 's'):
       p.showboard()
+
+    elif cmd[0] == 'sv':
+      if len(cmd) != 2:
+        print("Please enter a valid file name.")
+        continue
+      p.save(cmd[1])
+
+    elif cmd[0] == 'ld':
+      if len(cmd) != 2:
+        print("Please enter a valid file name.")
+        continue
+      fname = cmd[1]
+      try:
+        with open(fname, 'r') as f:
+          pass
+      except:
+        print("Failed to load.")
 
     else:
       print("Unknown command.")
