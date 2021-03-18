@@ -7,6 +7,8 @@ import math
 from collections import deque
 import numpy as np
 
+from sgf_parse import SgfTree
+
 """
 points on the board
 """
@@ -48,6 +50,9 @@ def point_to_coord(p, C):
 def point_to_alphanum(p, C):
   r, c = point_to_coord(p, C)
   return 'abcdefghi'[c] + '123456789'[r]
+
+def alphanum_to_point(an, R):
+  return (ord(an[0]) - ord('a')) + (int(an[1:])-1)*R
 
 def pointset_to_str(S):
   s = ''
@@ -900,7 +905,7 @@ class Position: # hex board
       return out
 
   def save(self, fname):
-    header = "(;FF[4]GM[11]SZ[%d]\n" % max(self.R, self.C)
+    header = "(;FF[4]GM[11]SZ[%d:%d]\n" % (self.C, self.R)
     chrs = {BCH:'B', WCH:'W'}
     visited = set()
     sgf = ""
@@ -1035,11 +1040,36 @@ def interact():
         print("Please enter a valid file name.")
         continue
       fname = cmd[1]
+      f = None
       try:
-        with open(fname, 'r') as f:
-          pass
+        f = open(fname, 'r')              
       except:
-        print("Failed to load.")
+        print("Failed to open file.")
+        continue
+
+      t = None
+      try:
+        t = SgfTree(f.read())
+        sz = t.children[0].properties["SZ"][0].split(':')
+        if len(sz) == 1:
+          r = int(sz[0])
+          p = Position(r, r)
+        elif len(sz) == 2:
+          p = Position(int(sz[1]), int(sz[0]))
+        else:
+          raise Exception("Bad")
+
+        while t.children:
+          t1 = t.children[0]
+          props = t1.properties
+          chrs = {"B":BCH, "W":WCH}
+          for ch in chrs:
+            if ch in props:
+              p.move(chrs[ch], alphanum_to_point(props[ch][0], p.R))
+          t = t1
+      except:
+        print("Failed to parse sgf.")
+      f.close()
 
     else:
       print("Unknown command.")

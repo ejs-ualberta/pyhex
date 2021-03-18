@@ -1,7 +1,7 @@
 # _Simple_ sgf parser. For now it does not do very much.
 # TODO: Make this better
-whitespace = {' ', '\n', '\t'}
 
+whitespace = {' ', '\n', '\t'}
 class SgfTree:
     def __init__(self, input_str=""):
         self.children = []
@@ -23,11 +23,12 @@ class SgfTree:
             raise Exception("Expected alpha characters.")
         return i, out
 
-    def expect_alnum(self, s, i):
+    # This also accepts colons so numberpairs/pointpairs can be entered
+    def expect_pp_or_alnum(self, s, i):
         out = ""
         while i < len(s):
             ch = s[i]
-            if not ch.isalnum():
+            if not ch.isalnum() and ch != ':':
                 break
             i += 1
             out += ch
@@ -71,7 +72,9 @@ class SgfTree:
                 while i < len(sgf_str) and sgf_str[i] == '[':
                     i += 1
                     i = self.ignore_ws(sgf_str, i)
-                    i, val = self.expect_alnum(sgf_str, i)
+                    # This doesn't switch based on prop so right now it
+                    # matches numberpairs/pointpairs and alphanumeric text without whitespace
+                    i, val = self.expect_pp_or_alnum(sgf_str, i)
                     values.append(val)
                     i = self.ignore_ws(sgf_str, i)
                     if i >= len(sgf_str) or sgf_str[i] != ']':
