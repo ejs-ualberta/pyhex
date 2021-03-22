@@ -718,8 +718,9 @@ class Position: # hex board
   def fill_cells(self, cells, ptm):
     i = 0
     for c in cells:
-      self.move(ptm, c)
-      i += 1
+      if self.brd[c] == ECH:
+        self.move(ptm, c)
+        i += 1
     return i
 
   def win_move(self, ptm, moves):
@@ -732,10 +733,10 @@ class Position: # hex board
     n_undo = 0
     while True:
       d = self.dead()
-      cp = self.captured(ptm)
-      co = self.captured(optm)
       n_undo += self.fill_cells(d, ptm)
+      cp = self.captured(ptm)
       n_undo += self.fill_cells(cp, ptm)
+      co = self.captured(optm)
       n_undo += self.fill_cells(co, optm)
       if not (d or cp or co):
         break
