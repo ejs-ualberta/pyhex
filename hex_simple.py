@@ -51,8 +51,8 @@ def point_to_alphanum(p, C):
   r, c = point_to_coord(p, C)
   return 'abcdefghi'[c] + '123456789'[r]
 
-def alphanum_to_point(an, R):
-  return (ord(an[0]) - ord('a')) + (int(an[1:])-1)*R
+def alphanum_to_point(an, C):
+  return (ord(an[0]) - ord('a')) + (int(an[1:])-1)*C
 
 def pointset_to_str(S):
   s = ''
@@ -1066,7 +1066,7 @@ def interact():
           chrs = {"B":BCH, "W":WCH}
           for ch in chrs:
             if ch in props:
-              p.move(chrs[ch], alphanum_to_point(props[ch][0], p.R))
+              p.move(chrs[ch], alphanum_to_point(props[ch][0], p.C))
           t = t1
       except:
         print("Failed to parse sgf.")
