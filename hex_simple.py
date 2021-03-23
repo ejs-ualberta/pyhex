@@ -295,6 +295,106 @@ class Position: # hex board
               [BCH, ECH, ECH, WCH, WCH, WCH, WCH], self.R, self.C),
     ]
 
+  def vc_search(self, ptm):
+    def sort2(l):
+      if l[0] < l[1]:
+        return l
+      return (l[1], l[0])
+
+    optm = oppCH(ptm)
+    _, side1, side2 = self.connection_graphs[ptm]
+    set1, set2 = (self.TOP_ROW, self.BTM_ROW) if ptm == BCH else (self.LFT_COL, self.RGT_COL)
+    cells = {i for i in range(len(self.brd)) if self.brd[i] != optm}
+    miai_conn = UnionFind()
+    miai_reply = [set() for i in range(len(self.brd))]
+    scs = {}
+    vcs = {}
+
+    # initialize vcs
+    for i in range(len(self.brd)):
+      if self.brd[i] == optm:
+        continue
+      for j in self.nbrs[i]:
+        if self.brd[j] == optm:
+          continue
+        s = sort2((i, j))
+        if s not in vcs:
+          vcs[s] = set()
+        if self.brd[i] == ptm and self.brd[j] == ptm:
+          miai_conn.union(i, j)
+    for loc in set1:
+      ch = self.brd[loc]
+      if ch == optm:
+        continue
+      elif ch == ptm:
+        miai_conn.union(side1, loc)
+      vcs[(loc, side1)] = set()
+    for loc in set2:
+      ch = self.brd[loc]
+      if ch == optm:
+        continue
+      elif ch == ptm:
+        miai_conn.union(side2, loc)
+      vcs[(loc, side2)] = set()
+
+    loop = True
+    while loop:
+      loop = False
+      # Find new vcs/scs from vcs
+      for b in cells:
+        enb = {vc for vc in vcs.keys() if b in vc}
+        for vc in enb:
+          for vc1 in enb - {vc}:
+            a = next(iter(set(vc)-{b}))
+            c = next(iter(set(vc1)-{b}))
+            s = sort2((a, c))
+            k = s + (b,)
+            if s in vcs:
+              continue
+            if k in scs:
+              continue
+            loop = True
+            if self.brd[b] == ptm:
+              # Carrier for this vc is the union of the carriers for vc and vc1
+              vcs[s] = vcs[vc] | vcs[vc1]
+              if (s[0] in {side1, side2} or self.brd[s[0]] == ptm) and (s[1] in {side1, side2} or self.brd[s[1]] == ptm):
+                miai_conn.union(a, c)
+            else:
+              # b is the key, the carrier is the union of the carriers and also includes b
+              scs[k] = vcs[vc] | vcs[vc1] | {b}
+
+      # Find new vcs from scs
+      for a in cells | {side1, side2}:
+        for c in cells | {side1, side2} - {a}:
+          s = sort2((a, c))
+          if s in vcs:
+            continue
+          enb = {sc for sc in scs.keys() if sc[:2] == s}
+          if len(enb) < 2:
+            continue
+          subs = {(sc, sc1) for sc in enb for sc1 in enb if sc != sc1}
+          for pair in subs:
+            sc1 = pair[0]
+            sc2 = pair[1]
+            set1 = scs[sc1]
+            set2 = scs[sc2]
+            if not set1 & set2:
+              vcs[s] = set1 | set2
+              if (s[0] in {side1, side2} or self.brd[s[0]] == ptm) and (s[1] in {side1, side2} or self.brd[s[1]] == ptm):
+                miai_conn.union(a, c)
+                b1 = sc1[2]
+                b2 = sc2[2]
+                miai_reply[b1].add(b2)
+                miai_reply[b2].add(b1)
+              loop = True
+              break
+    return miai_conn, miai_reply
+
+  def vcs_bp(self):
+    mcb, mrb = self.vc_search(BCH)
+    mcw, mrw = self.vc_search(WCH)
+    # return miai connections, then miai responses
+    return {BCH:mcb, WCH:mcw}, {BCH:mrb, WCH:mrw}
 
   #TODO: If we have a reply to an opponent probe that restores a connection, should we record that information?
   #TODO: Generalize miai def'n? For example by using the 2-or rule?

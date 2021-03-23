@@ -37,7 +37,7 @@ class TestHex(unittest.TestCase):
         self.assertEqual(pos.captured(BCH), {6, 7, 8, 9, 15})
 
 
-    @unittest.skip("Takes a long time")
+    #@unittest.skip("Takes a long time")
     def test_correct(self):
         pos = Position(5,5)
         for i in range(25):
@@ -52,13 +52,15 @@ class TestHex(unittest.TestCase):
             print("%.4f" % (time.time() - st) + 's \n')
 
 
+    @unittest.skip("Takes a long time")
     def test_sgf(self):
-        for i in range(1024):
+        for i in range(64):
             rows = random.randint(2, 8)
             cols = random.randint(2, 8)
             p = Position(rows, cols)
             for i in range(len(p.brd)):
                 p.move(random.choice(PTS), i)
+            #p.showboard()
             brd = p.brd
             fname = "./temporary_test_file_do_not_use_this_name.sgf"
             if os.path.exists(fname):
