@@ -289,14 +289,30 @@ class Position: # hex board
         return l
       return (l[1], l[0])
 
+    def construct_miai(conn, miai_build, miai_reply):
+      if conn not in miai_build:
+        return
+      m = miai_build[conn]
+      c1 = m[0]
+      c2 = m[1]
+      construct_miai(c1, miai_build, miai_reply)
+      construct_miai(c2, miai_build, miai_reply)
+      if len(c1) == 3 and len(c2) == 3:
+        b1 = c1[2]
+        b2 = c2[2]
+        miai_reply[b1].add(b2)
+        miai_reply[b2].add(b1)
+
     optm = oppCH(ptm)
     _, side1, side2 = self.connection_graphs[ptm]
     set1, set2 = (self.TOP_ROW, self.BTM_ROW) if ptm == BCH else (self.LFT_COL, self.RGT_COL)
     cells = {i for i in range(len(self.brd)) if self.brd[i] != optm}
+    c_n_s = cells | {side1, side2}
     miai_conn = UnionFind()
     miai_reply = [set() for i in range(len(self.brd))]
     scs = {}
     vcs = {}
+    miai_build = {}
 
     # initialize vcs
     for i in range(len(self.brd)):
@@ -347,19 +363,19 @@ class Position: # hex board
               vcs[s] = vcs[vc] | vcs[vc1]
               if (s[0] in {side1, side2} or self.brd[s[0]] == ptm) and (s[1] in {side1, side2} or self.brd[s[1]] == ptm):
                 miai_conn.union(a, c)
+              miai_build[s] = (vc, vc1)
             else:
               # b is the key, the carrier is the union of the carriers and also includes b
               scs[k] = vcs[vc] | vcs[vc1] | {b}
+              miai_build[k] = (vc, vc1)
 
       # Find new vcs from scs
-      for a in cells | {side1, side2}:
-        for c in cells | {side1, side2} - {a}:
+      for a in c_n_s:
+        for c in c_n_s:
           s = sort2((a, c))
           if s in vcs:
             continue
           enb = {sc for sc in scs.keys() if sc[:2] == s}
-          if len(enb) < 2:
-            continue
           subs = {(sc, sc1) for sc in enb for sc1 in enb if sc != sc1}
           for pair in subs:
             sc1 = pair[0]
@@ -368,12 +384,10 @@ class Position: # hex board
             set2 = scs[sc2]
             if not set1 & set2:
               vcs[s] = set1 | set2
+              miai_build[s] = (sc1, sc2)
               if (s[0] in {side1, side2} or self.brd[s[0]] == ptm) and (s[1] in {side1, side2} or self.brd[s[1]] == ptm):
                 miai_conn.union(a, c)
-                b1 = sc1[2]
-                b2 = sc2[2]
-                miai_reply[b1].add(b2)
-                miai_reply[b2].add(b1)
+                construct_miai(s, miai_build, miai_reply)
               loop = True
               break
     ws = set()
