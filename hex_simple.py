@@ -681,6 +681,17 @@ class Position: # hex board
         i += 1
     return i
 
+  def refresh(self):
+    self.miai_connections, self.miai_reply, self.ws = self.vcs_bp()
+
+  def fill_cells_lite(self, cells, ptm):
+    i = 0
+    for c in cells:
+      if self.brd[c] == ECH:
+        self.brd = change_str(self.brd, c, ptm)
+        i += 1
+    return i
+
   def win_move(self, ptm, captured={BCH:set(), WCH:set()}):
     # assume neither player has won yet
     optm = oppCH(ptm) 
@@ -691,8 +702,7 @@ class Position: # hex board
       return '', calls, set()
 
     mustplay = {i for i in range(len(self.brd)) if self.brd[i] == ECH}
-    cells = [self.midpoint()] + self.rank_moves_by_vc(ptm) # self.CELLS
-
+    cells = [self.midpoint()] + self.rank_moves_by_vc(ptm) # self.CELL
     #if not self.H:
     #  cells = [self.midpoint()] + cells
 
@@ -705,29 +715,29 @@ class Position: # hex board
           cells = cells[i+1:]
           break
 
-      self.move(ptm, move)
+      brd = self.brd
+      self.brd = change_str(self.brd, move, ptm)
 
-      n_undo = 0
       pcap = captured[ptm]
       ocap = captured[optm]
       while True:
         d = self.dead()
-        n_undo += self.fill_cells(d, ptm)
+        self.fill_cells_lite(d, ptm)
         cp = self.captured(ptm)
         pcap = pcap | cp
-        n_undo += self.fill_cells(cp, ptm)
+        self.fill_cells_lite(cp, ptm)
         co = self.captured(optm)
         ocap = ocap | co
-        n_undo += self.fill_cells(co, optm)
+        self.fill_cells_lite(co, optm)
         if not (d or cp or co):
           break
+      self.refresh()
 
       if self.miai_connected(ptm): # Also true if has_win
         pt = point_to_alphanum(move, self.C)
         ws = self.ws[ptm] | pcap
-        for i in range(n_undo):
-          self.undo()
-        self.undo()
+        self.brd = brd
+        self.refresh()
         return pt, calls, ws.union({move})
 
       omv, ocalls, oset = self.win_move(optm, {ptm:pcap, optm:ocap})
@@ -736,16 +746,14 @@ class Position: # hex board
       if not omv: # opponent has no winning response to ptm move
         oset.add(move)
         pt = point_to_alphanum(move, self.C)
-        for i in range(n_undo):
-          self.undo()
-        self.undo()
+        self.brd = brd
+        self.refresh()
         return pt, calls, oset
 
       ovc = ovc.union(oset)
       mustplay = mustplay.intersection(oset)
-      for i in range(n_undo):
-        self.undo()
-      self.undo()
+      self.brd = brd
+      self.refresh()
 
     return '', calls, ovc
 
