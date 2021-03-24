@@ -164,7 +164,6 @@ class Position: # hex board
     self.R, self.C, self.n = rows, cols, rows*cols
     self.brd = PTS[EMPTY]*self.n
     self.H = []
-    #self.cache = dict()
 
     self.nbrs = []
     for r in range(self.R):
@@ -186,20 +185,8 @@ class Position: # hex board
       self.TOP_ROW.add(coord_to_point(0, c, self.C))
       self.BTM_ROW.add(coord_to_point(self.R-1, c, self.C))
 
-    #if self.R == 3 and self.C == 3: self.CELLS = (4,2,6,3,5,1,7,0,8)
-    #elif self.R == 3 and self.C == 4: self.CELLS = (5,6,4,7,2,9,3,8,1,10,0,11)
-    #elif self.R == 4 and self.C == 4: self.CELLS = (6,9,3,12,2,13,5,10,8,7,1,14,4,11,0,15)
-    #elif self.R == 5 and self.C == 5: 
-    #  self.CELLS = (12,8,16,7,17,6,18,11,13,4,20,3,21,2,22,15,9,10,14,5,19,1,23,0,24)
-    #else: self.CELLS = [j for j in range(self.n)]  # this order terrible for solving
-
-    self.miai_patterns = {BCH:Pattern([[0, 0, 0], [1, 1, -2], [0, 1, -1], [1, 0, -1]],
-                                      [BCH, BCH, ECH, ECH], self.R, self.C),
-                          WCH:Pattern([[0, 0, 0], [1, 1, -2], [0, 1, -1], [1, 0, -1]],
-                                      [WCH, WCH, ECH, ECH], self.R, self.C)}
     self.connection_graphs = {BCH:self.get_connections(BCH), WCH:self.get_connections(WCH)}
-    self.miai_reply = self.get_miai_replies()
-    self.miai_connections = {BCH:UnionFind(), WCH:UnionFind()}
+    self.miai_connections, self.miai_reply, self.ws = self.vcs_bp()
 
     # dead cell patterns
     self.dc_patterns = [
@@ -295,6 +282,7 @@ class Position: # hex board
               [BCH, ECH, ECH, WCH, WCH, WCH, WCH], self.R, self.C),
     ]
 
+
   def vc_search(self, ptm):
     def sort2(l):
       if l[0] < l[1]:
@@ -388,163 +376,24 @@ class Position: # hex board
                 miai_reply[b2].add(b1)
               loop = True
               break
-    return miai_conn, miai_reply
+    ws = set()
+    if (side1, side2) in vcs:
+      ws = vcs[(side1, side2)]
+    return miai_conn, miai_reply, ws
 
   def vcs_bp(self):
-    mcb, mrb = self.vc_search(BCH)
-    mcw, mrw = self.vc_search(WCH)
+    mcb, mrb, wsb = self.vc_search(BCH)
+    mcw, mrw, wsw = self.vc_search(WCH)
     # return miai connections, then miai responses
-    return {BCH:mcb, WCH:mcw}, {BCH:mrb, WCH:mrw}
+    return {BCH:mcb, WCH:mcw}, {BCH:mrb, WCH:mrw}, {BCH:wsb, WCH:wsw}
 
   #TODO: If we have a reply to an opponent probe that restores a connection, should we record that information?
-  #TODO: Generalize miai def'n? For example by using the 2-or rule?
-  '''
-  def get_all_miai_ws(self, ptm):
-    conn, side1, side2 = self.connection_graphs[ptm]
-    set1, set2 = (self.TOP_ROW, self.BTM_ROW) if ptm == BCH else (self.LFT_COL, self.RGT_COL)
-    mc = set()
-    for s in self.miai_reply[ptm]:
-      mc = mc.union(s)
-    occ = {i for i in range(len(self.brd)) if self.brd[i] == ptm}
-    options = occ.union(mc).intersection(conn[side1])
-    visited = set()
-    winset = set()
-    def gmws_helper(node, options):
-      nonlocal winset
-      if node in visited:
-        return
-      visited.add(node)
-      if node in set2:
-        winset = winset.union(visited)
-      for nd in options:
-        if nd in visited:
-          continue
-        miai_cells = self.miai_patterns[ptm].matches(self.brd, nd)
-        ops = self.nbrs[nd].intersection(occ).union(miai_cells) - {node}
-        gmws_helper(nd, ops)
-        visited.remove(nd)
-    gmws_helper(side1, options)
-    return winset - {side1, side2}
-
-  '''
-  def get_all_miai_ws(self, ptm):#, captured):
-    conn, side1, side2 = self.connection_graphs[ptm]
-    set1, set2 = (self.TOP_ROW, self.BTM_ROW) if ptm == BCH else (self.LFT_COL, self.RGT_COL)
-    mc = set()
-    for s in self.miai_reply[ptm]:
-      mc = mc.union(s)
-    occ = {i for i in range(len(self.brd)) if self.brd[i] == ptm}
-    options = (occ | mc) & set1
-    visited = set()
-    winset = set()
-    def gmws_helper(node, options):
-      nonlocal winset
-      if node in visited:
-        return
-      visited.add(node)
-      if node in set2:
-        winset = winset.union(visited)
-      for nd in options:
-        if nd in visited:
-          continue
-        ops = self.nbrs[nd] & (occ | mc)
-        gmws_helper(nd, ops)
-        visited.remove(nd)
-    gmws_helper(side1, options)
-    #cu = winset & captured
-    return winset - {side1, side2}
 
   def miai_connected(self, ptm):
     # Check efficiently whether ptm stones are miai connected
     c = self.miai_connections[ptm]
     conn, side1, side2 = self.connection_graphs[ptm]
     return c.find(side1) == c.find(side2)
-
-  def get_miai_connections(self, ptm):
-    # Calculate from scratch whether ptm stones are miai connected
-    set1, set2 = (self.TOP_ROW, self.BTM_ROW) if ptm == BCH else (self.LFT_COL, self.RGT_COL)
-    conn, side1, side2 = self.connection_graphs[ptm]
-    c = UnionFind()
-    for i in range(len(self.brd)):
-      ch = self.brd[i]
-      if ch != ptm:
-        continue
-
-      for nbr in self.nbrs[i]:
-        if self.brd[nbr] == ptm:
-          c.union(nbr, i)
-      if i in set1:
-        c.union(side1, i)
-      elif i in set2:
-        c.union(side2, i)
-      cells = self.miai_patterns[ptm].matches(self.brd, i)
-      for cell in cells:
-        if cell in set1:
-          c.union(side1, cell)
-        elif cell in set2:
-          c.union(side2, cell)
-        c.union(i, cell)
-    #print(c.find(side1), c.find(side2))
-    return c
-
-  def update_miai_at(self, miai_replies, idx):
-    # Adds any new miai at self.brd[idx] to miai_replies
-    ch = self.brd[idx]
-
-    # Update miai_reply[ptm]
-    r = self.miai_reply[ch][idx]
-    for i in r:
-      self.miai_reply[ch][i].remove(idx)
-    self.miai_reply[ch][idx] = set()
-
-    set1, set2 = (self.TOP_ROW, self.BTM_ROW) if ch == BCH else (self.LFT_COL, self.RGT_COL)
-    cells = self.miai_patterns[ch].matches(self.brd, idx)
-    for cell in cells:
-      for cell2 in cells - {cell}:
-        nbrs = self.nbrs[cell2].intersection(self.nbrs[cell]) - {idx}
-        if (nbrs and self.brd[list(nbrs)[0]] == ch) or (cell in set1 and cell2 in set1) or (cell in set2 and cell2 in set2):
-          miai_replies[ch][cell] = miai_replies[ch][cell].union({cell2})
-
-  def get_miai_replies(self):
-    miai_replies = {BCH:[set() for i in range(len(self.brd))], WCH:[set() for i in range(len(self.brd))]}
-    for i in range(len(self.brd)):
-      if self.brd[i] != ECH:
-        self.update_miai_at(miai_replies, i)
-    return miai_replies
-
-  def update_miai_connections(self, ptm, i):
-    optm = oppCH(ptm)
-    # If ptm played in the opponents's miai
-    if self.miai_reply[optm][i]:
-      self.miai_connections[optm] = self.get_miai_connections(optm)
-
-    set1, set2 = (self.TOP_ROW, self.BTM_ROW) if ptm == BCH else (self.LFT_COL, self.RGT_COL)
-    conn, side1, side2 = self.connection_graphs[ptm]
-    c = self.miai_connections[ptm]
-
-    for nbr in self.nbrs[i]:
-      if self.brd[nbr] == ptm:
-        c.union(nbr, i)
-    if i in set1:
-      c.union(side1, i)
-    elif i in set2:
-      c.union(side2, i)
-
-    cells = self.miai_patterns[ptm].matches(self.brd, i)
-    subs = {(a, b) for a in cells for b in cells if a != b and b in self.nbrs[a]}
-    for s in subs:
-      l = list(s)
-      n = self.nbrs[l[0]].intersection(self.nbrs[l[1]]) - {i}
-      if n:
-        c.union(i, n.pop())
-
-    for cell in cells:
-      if cell in set1:
-        c.union(side1, cell)
-      elif cell in set2:
-        c.union(side2, cell)
-      c.union(i, cell)
-    self.miai_connections[ptm] = c
 
   def requestmove(self, cmd):
     ret, cmd = False, cmd.split()
@@ -571,15 +420,10 @@ class Position: # hex board
     return True
 
   def move(self, ch, where):
-    self.H.append((self.brd[where], where, deepcopy(self.miai_reply), deepcopy(self.miai_connections)))
+    self.H.append((self.brd[where], where, deepcopy(self.miai_reply), deepcopy(self.miai_connections), deepcopy(self.ws)))
     self.brd = change_str(self.brd, where, ch)
     #self.connection_graphs = {BCH:self.get_connections(BCH), WCH:self.get_connections(WCH)}
-    if ch != ECH:
-      self.update_miai_at(self.miai_reply, where)
-      self.update_miai_connections(ch, where)
-    else:
-      self.miai_reply = self.get_miai_replies()
-      self.miai_connections = {BCH:self.get_miai_connections(BCH), WCH:self.get_miai_connections(WCH)}
+    self.miai_connections, self.miai_reply, self.ws = self.vcs_bp()
 
   def connected_cells(self, pt, ptm, side1, side2):
     # Find all ptm-occupied cells connected to a particular ptm-occupied cell. Cells are connected if
@@ -823,40 +667,20 @@ class Position: # hex board
         i += 1
     return i
 
-  def win_move(self, ptm, moves):
+  def win_move(self, ptm, captured={BCH:set(), WCH:set()}):
     # assume neither player has won yet
-    # moves is a set contioning the moves that have been played already
     optm = oppCH(ptm) 
     calls = 1
     ovc = set()
 
-    n_undo = 0
-    while True:
-      d = self.dead()
-      n_undo += self.fill_cells(d, ptm)
-      cp = self.captured(ptm)
-      n_undo += self.fill_cells(cp, ptm)
-      co = self.captured(optm)
-      n_undo += self.fill_cells(co, optm)
-      if not (d or cp or co):
-        break
-
     if self.miai_connected(optm):
-      for i in range(n_undo):
-        self.undo()
       return '', calls, set()
 
-    if self.miai_connected(ptm):
-      ws = self.get_all_miai_ws(ptm) - moves
-      for i in range(n_undo):
-        self.undo()
-      return point_to_alphanum(next(iter(ws)), self.C), calls, ws
-
     mustplay = {i for i in range(len(self.brd)) if self.brd[i] == ECH}
-    cells = self.rank_moves_by_vc(ptm) # self.CELLS
+    cells = [self.midpoint()] + self.rank_moves_by_vc(ptm) # self.CELLS
 
-    if not self.H:
-      cells = [self.midpoint()] + cells
+    #if not self.H:
+    #  cells = [self.midpoint()] + cells
 
     while len(mustplay) > 0:
       move = None
@@ -869,15 +693,30 @@ class Position: # hex board
 
       self.move(ptm, move)
 
+      n_undo = 0
+      pcap = captured[ptm]
+      ocap = captured[optm]
+      while True:
+        d = self.dead()
+        n_undo += self.fill_cells(d, ptm)
+        cp = self.captured(ptm)
+        pcap = pcap | cp
+        n_undo += self.fill_cells(cp, ptm)
+        co = self.captured(optm)
+        ocap = ocap | co
+        n_undo += self.fill_cells(co, optm)
+        if not (d or cp or co):
+          break
+
       if self.miai_connected(ptm): # Also true if has_win
         pt = point_to_alphanum(move, self.C)
-        ws = self.get_all_miai_ws(ptm) - moves
+        ws = self.ws[ptm] | pcap
         for i in range(n_undo):
           self.undo()
         self.undo()
         return pt, calls, ws.union({move})
 
-      omv, ocalls, oset = self.win_move(optm, moves | {move})
+      omv, ocalls, oset = self.win_move(optm, {ptm:pcap, optm:ocap})
 
       calls += ocalls
       if not omv: # opponent has no winning response to ptm move
@@ -890,10 +729,10 @@ class Position: # hex board
 
       ovc = ovc.union(oset)
       mustplay = mustplay.intersection(oset)
+      for i in range(n_undo):
+        self.undo()
       self.undo()
 
-    for i in range(n_undo):
-      self.undo()
     return '', calls, ovc
 
   def showboard(self):
@@ -988,7 +827,7 @@ class Position: # hex board
       print('\n    original position,  nothing to undo\n')
       return False
     else:
-      ch, where, self.miai_reply, self.miai_connections = self.H.pop()
+      ch, where, self.miai_reply, self.miai_connections, self.ws = self.H.pop()
       self.brd = change_str(self.brd, where, ch)
     return True
 
@@ -997,7 +836,7 @@ class Position: # hex board
     elif self.miai_connected('o'): return('o has won')
     else:
       st = time.time()
-      wm, calls, vc = self.win_move(ch, {i for i in range(len(self.brd)) if self.brd[i] != ECH})
+      wm, calls, vc = self.win_move(ch)
       out = '\n' + ch + '-to-move: '
       out += (ch if wm else oppCH(ch)) + ' wins' 
       out += (' ... ' if wm else ' ') + wm + '\n'
