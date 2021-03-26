@@ -297,13 +297,13 @@ class Position: # hex board
       if conn not in miai_build:
         return
       m = miai_build[conn]
-      c1 = m[0]
-      c2 = m[1]
-      construct_miai(c1, miai_build, miai_reply)
-      construct_miai(c2, miai_build, miai_reply)
-      if len(c1) == 3 and len(c2) == 3:
-        b1 = c1[2]
-        b2 = c2[2]
+      for c in m:
+        construct_miai(c, miai_build, miai_reply)
+      scs = [i for i in m if len(i) == 3]
+      subs = {(sc, sc1) for sc in scs for sc1 in scs if sc != sc1}
+      for pair in subs:
+        b1 = pair[0][2]
+        b2 = pair[1][2]
         miai_reply[b1].add(b2)
         miai_reply[b2].add(b1)
 

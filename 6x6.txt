@@ -11,3 +11,10 @@ x-to-move: x wins ... d3
 o-to-move: o wins ... d3
 152932 calls
 64290.7292s 
+
+
+> x e2
+> ? o
+o-to-move: x wins 
+9280 calls
+5533.3201s 
