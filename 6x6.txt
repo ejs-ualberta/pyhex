@@ -1,0 +1,13 @@
+# 6x6 board winning moves and time. After each run the board is cleared.
+
+> ? x
+x-to-move: x wins ... d3
+14932 calls
+19371.3680s
+
+
+> x a2
+> ? o
+o-to-move: o wins ... d3
+152932 calls
+64290.7292s 

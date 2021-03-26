@@ -284,12 +284,16 @@ class Position: # hex board
 
 
   def vc_search(self, ptm):
+    # Search for virtual connections
+    # Does not find all virtual connections but can detect 432s.
+
     def sort2(l):
       if l[0] < l[1]:
         return l
       return (l[1], l[0])
 
     def construct_miai(conn, miai_build, miai_reply):
+      # Find miai by building virtual connections from pairs of semiconnections
       if conn not in miai_build:
         return
       m = miai_build[conn]
@@ -314,7 +318,7 @@ class Position: # hex board
     vcs = {}
     miai_build = {}
 
-    # initialize vcs
+    # Initialize vcs
     for i in range(len(self.brd)):
       if self.brd[i] == optm:
         continue
@@ -346,9 +350,11 @@ class Position: # hex board
       loop = False
       # Find new vcs/scs from vcs
       for b in cells:
+        # Find vcs that both end at b
         enb = {vc for vc in vcs.keys() if b in vc}
         for vc in enb:
           for vc1 in enb - {vc}:
+            # Get the ends of each vc
             a = next(iter(set(vc)-{b}))
             c = next(iter(set(vc1)-{b}))
             s = sort2((a, c))
@@ -357,14 +363,18 @@ class Position: # hex board
               continue
             if k in scs:
               continue
+            # Found a new vc or sc
             loop = True
             if self.brd[b] == ptm:
+              # Found a virtual connection
               # Carrier for this vc is the union of the carriers for vc and vc1
               vcs[s] = vcs[vc] | vcs[vc1]
+              # If both sides are occupied with a ptm stone update connectivity
               if (s[0] in {side1, side2} or self.brd[s[0]] == ptm) and (s[1] in {side1, side2} or self.brd[s[1]] == ptm):
                 miai_conn.union(a, c)
               miai_build[s] = (vc, vc1)
             else:
+              # Found a semiconnection
               # b is the key, the carrier is the union of the carriers and also includes b
               scs[k] = vcs[vc] | vcs[vc1] | {b}
               miai_build[k] = (vc, vc1)
@@ -375,6 +385,7 @@ class Position: # hex board
           s = sort2((a, c))
           if s in vcs:
             continue
+          # Get all semiconnections with common ends
           enb = {sc for sc in scs.keys() if sc[:2] == s}
           subs = {(sc, sc1) for sc in enb for sc1 in enb if sc != sc1}
           for pair in subs:
@@ -382,6 +393,7 @@ class Position: # hex board
             sc2 = pair[1]
             set1 = scs[sc1]
             set2 = scs[sc2]
+            # If the intersection of their carriers is empty then they form a new vc
             if not set1 & set2:
               vcs[s] = set1 | set2
               miai_build[s] = (sc1, sc2)
@@ -390,15 +402,17 @@ class Position: # hex board
                 construct_miai(s, miai_build, miai_reply)
               loop = True
               break
+
     ws = set()
     if (side1, side2) in vcs:
       ws = vcs[(side1, side2)]
     return miai_conn, miai_reply, ws
 
   def vcs_bp(self):
+    # Get miai info for both players
     mcb, mrb, wsb = self.vc_search(BCH)
     mcw, mrw, wsw = self.vc_search(WCH)
-    # return miai connections, then miai responses
+    # return miai connections, then miai responses, and a winset if both sides are vc'd otherwise the empty set
     return {BCH:mcb, WCH:mcw}, {BCH:mrb, WCH:mrw}, {BCH:wsb, WCH:wsw}
 
   #TODO: If we have a reply to an opponent probe that restores a connection, should we record that information?
@@ -587,8 +601,8 @@ class Position: # hex board
     return seen.keys()
 
   def rank_moves_by_vc(self, ptm, show_ranks=False, recurse=True):
-    # Assign a score to each node based on whether it is virtually connected to other nodes/sides and
-    # or whether it is in a shortest winning path
+    # Assign a score to each node based on whether it is virtually connected to other nodes/sides
+    # and/or whether it is in a shortest winning path
     set1, set2 = (self.TOP_ROW, self.BTM_ROW) if ptm == BCH else (self.LFT_COL, self.RGT_COL)
     optm = oppCH(ptm)
     score = [0] * len(self.brd)
@@ -651,6 +665,8 @@ class Position: # hex board
     return coord_to_point(y, x, self.C)
 
   def dead(self):
+    # Uses patterns to find dead cells.
+    # Does not find all dead cells.
     inf_cs = set()
     for i in range(len(self.brd)):
       if self.brd[i] != ECH:
