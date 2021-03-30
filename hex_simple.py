@@ -1,7 +1,7 @@
 """
 negamax small-board hex solver
 """
-from copy import deepcopy
+#from copy import deepcopy
 import time
 import math
 from collections import deque
@@ -283,6 +283,60 @@ class Position: # hex board
     ]
 
 
+  def compute_voltage(self, ptm, max_delta=0.00001):
+    #WARNING Doesn't work yet
+    set1, set2 = (self.TOP_ROW, self.BTM_ROW) if ptm == BCH else (self.LFT_COL, self.RGT_COL)
+    g, side1, side2 = self.connection_graphs[ptm]
+    # Voltage flows from side1 to side2
+    voltages = [0.0] * (self.R * self.C) + [1.0, 0.0]
+    err = max_delta
+    keys = g.keys() - {side1, side2} # Don't update source or sink
+    occ = {i for i in range(len(self.brd)) if self.brd[i] == ptm}
+    # TODO: Better ordering for iteratively computing voltages?
+    while err >= max_delta:
+      err = 0.0
+      for node in occ:
+        nbrs = self.nbrs[node]
+        if node in set1:
+          nbrs = nbrs | {side1}
+        if node in set2:
+          nbrs = nbrs | {side2}
+        v = 0.0
+        for nbr in nbrs:
+          v = max(v, voltages[nbr])
+        err = max(err, v - voltages[node])
+        voltages[node] = v
+
+      for node in keys:
+        nbrs = g[node]
+        v = 0.0
+        for nbr in nbrs:
+          v += voltages[nbr]
+        v /= len(nbrs)
+        err = max(err, v - voltages[node])
+        voltages[node] = v
+    return voltages
+
+  def voltage_drops(self, ptm):
+    #WARNING Doesn't work yet
+    g, side1, side2 = self.connection_graphs[ptm]
+    #set1, set2 = (self.TOP_ROW, self.BTM_ROW) if ptm == BCH else (self.LFT_COL, self.RGT_COL)
+    optm = oppCH(ptm)
+    voltage = self.compute_voltage(ptm)
+    vdrops = []
+    for i in range(len(self.brd)):
+      if self.brd[i] != ECH:
+        continue
+      nbrs = g[i]
+      drop = 0.0
+      for nbr in nbrs:
+        if nbr < len(self.brd) and self.brd[nbr] == optm:
+          continue
+        drop += max(0, voltage[nbr] - voltage[i])
+      vdrops.append((drop, i))
+    vdrops = [pair[1] for pair in sorted(vdrops, reverse=True)]
+    return vdrops
+
   def vc_search(self, ptm):
     # Search for virtual connections
     # Does not find all virtual connections but can detect 432s.
@@ -448,9 +502,9 @@ class Position: # hex board
     return True
 
   def move(self, ch, where):
-    self.H.append((self.brd[where], where, deepcopy(self.miai_reply), deepcopy(self.miai_connections), deepcopy(self.ws)))
+    self.H.append((self.brd[where], where, self.miai_reply, self.miai_connections, self.ws, self.connection_graphs))
     self.brd = change_str(self.brd, where, ch)
-    #self.connection_graphs = {BCH:self.get_connections(BCH), WCH:self.get_connections(WCH)}
+    self.connection_graphs = {BCH:self.get_connections(BCH), WCH:self.get_connections(WCH)}
     self.miai_connections, self.miai_reply, self.ws = self.vcs_bp()
 
   def connected_cells(self, pt, ptm, side1, side2):
@@ -650,7 +704,7 @@ class Position: # hex board
           elif self.brd[list(s)[0]] == ptm:
             score[i] += 1
 
-    spft = self.shortest_paths_from_to(*self.get_connections(ptm))
+    spft = self.shortest_paths_from_to(*self.connection_graphs[ptm])
     # Scores are arbitrary constants that seemed to work well
     for i in spft:
       score[i] += 5
@@ -865,7 +919,7 @@ class Position: # hex board
       print('\n    original position,  nothing to undo\n')
       return False
     else:
-      ch, where, self.miai_reply, self.miai_connections, self.ws = self.H.pop()
+      ch, where, self.miai_reply, self.miai_connections, self.ws, self.connection_graphs = self.H.pop()
       self.brd = change_str(self.brd, where, ch)
     return True
 
@@ -1006,6 +1060,15 @@ def interact():
 
     elif (cmd[0] == 's'):
       p.showboard()
+
+    elif (cmd[0] == 'v'):
+      try:
+        v = p.compute_voltage(cmd[1])
+        for i in range(len(p.brd)):
+          print(point_to_alphanum(i, p.C), v[i])
+        print([point_to_alphanum(i, p.C) for i in p.voltage_drops(cmd[1])])
+      except:
+        print("Please supply a valid player to compute voltages for.")
 
     elif cmd[0] == 'sv':
       if len(cmd) != 2:
