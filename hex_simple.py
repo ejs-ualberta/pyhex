@@ -1,7 +1,7 @@
 """
 negamax small-board hex solver
 """
-#from copy import deepcopy
+from copy import deepcopy
 import time
 import math
 from collections import deque
@@ -187,6 +187,7 @@ class Position: # hex board
 
     self.connection_graphs = {BCH:self.get_connections(BCH), WCH:self.get_connections(WCH)}
     self.miai_connections, self.miai_reply, self.ws = self.vcs_bp()
+    self.voltage = {BCH:self.compute_voltage(BCH), WCH:self.compute_voltage(WCH)}
 
     # dead cell patterns
     self.dc_patterns = [
@@ -283,15 +284,18 @@ class Position: # hex board
     ]
 
 
-  def compute_voltage(self, ptm, max_delta=0.00001):
+  def compute_voltage(self, ptm, voltages=None, max_delta=0.00001):
     #WARNING Doesn't work yet
+    optm = oppCH(ptm)
     set1, set2 = (self.TOP_ROW, self.BTM_ROW) if ptm == BCH else (self.LFT_COL, self.RGT_COL)
     g, side1, side2 = self.connection_graphs[ptm]
     # Voltage flows from side1 to side2
-    voltages = [0.0] * (self.R * self.C) + [1.0, 0.0]
+    if not voltages:
+      voltages = [0.0] * (self.R * self.C) + [1.0, 0.0]
     err = max_delta
     keys = g.keys() - {side1, side2} # Don't update source or sink
     occ = {i for i in range(len(self.brd)) if self.brd[i] == ptm}
+    empty = keys - occ
     # TODO: Better ordering for iteratively computing voltages?
     while err >= max_delta:
       err = 0.0
@@ -306,9 +310,12 @@ class Position: # hex board
           v = max(v, voltages[nbr])
         err = max(err, v - voltages[node])
         voltages[node] = v
-
-      for node in keys:
-        nbrs = g[node]
+      for node in empty:
+        nbrs = self.nbrs[node]
+        if node in set1:
+          nbrs = nbrs | {side1}
+        if node in set2:
+          nbrs = nbrs | {side2}
         v = 0.0
         for nbr in nbrs:
           v += voltages[nbr]
@@ -322,7 +329,7 @@ class Position: # hex board
     g, side1, side2 = self.connection_graphs[ptm]
     #set1, set2 = (self.TOP_ROW, self.BTM_ROW) if ptm == BCH else (self.LFT_COL, self.RGT_COL)
     optm = oppCH(ptm)
-    voltage = self.compute_voltage(ptm)
+    voltage = self.voltage[ptm]
     vdrops = []
     for i in range(len(self.brd)):
       if self.brd[i] != ECH:
@@ -336,6 +343,13 @@ class Position: # hex board
       vdrops.append((drop, i))
     vdrops = [pair[1] for pair in sorted(vdrops, reverse=True)]
     return vdrops
+
+  def update_voltage(self, ptm, move, max_delta=0.0001):
+    optm = oppCH(ptm)
+    vp = self.voltage[ptm]
+    vo = self.voltage[optm]
+    vo[move] = 0.0
+    return {ptm:self.compute_voltage(ptm, voltages=vp, max_delta=max_delta), optm:self.compute_voltage(optm, voltages=vo, max_delta=max_delta)}
 
   def vc_search(self, ptm):
     # Search for virtual connections
@@ -502,10 +516,11 @@ class Position: # hex board
     return True
 
   def move(self, ch, where):
-    self.H.append((self.brd[where], where, self.miai_reply, self.miai_connections, self.ws, self.connection_graphs))
+    self.H.append((self.brd[where], where, self.miai_reply, self.miai_connections, self.ws, self.connection_graphs, deepcopy(self.voltage)))
     self.brd = change_str(self.brd, where, ch)
     self.connection_graphs = {BCH:self.get_connections(BCH), WCH:self.get_connections(WCH)}
     self.miai_connections, self.miai_reply, self.ws = self.vcs_bp()
+    self.voltage = self.update_voltage(ch, where) #{BCH:self.compute_voltage(BCH), WCH:self.compute_voltage(WCH)}
 
   def connected_cells(self, pt, ptm, side1, side2):
     # Find all ptm-occupied cells connected to a particular ptm-occupied cell. Cells are connected if
@@ -704,9 +719,11 @@ class Position: # hex board
           elif self.brd[list(s)[0]] == ptm:
             score[i] += 1
 
-    spft = self.shortest_paths_from_to(*self.connection_graphs[ptm])
+    #spft = self.shortest_paths_from_to(*self.connection_graphs[ptm])
     # Scores are arbitrary constants that seemed to work well
-    for i in spft:
+    #for i in spft:
+    #  score[i] += 5
+    for i in self.voltage_drops(ptm)[:5]:
       score[i] += 5
     counts = sorted([(score[i], i) for i in range(len(self.brd))], reverse=True)
     if show_ranks:
@@ -767,6 +784,10 @@ class Position: # hex board
     optm = oppCH(ptm) 
     calls = 1
     ovc = set()
+
+    if self.miai_connected(ptm): # Also true if has_win
+        ws = self.ws[ptm] | captured[ptm]
+        return point_to_alphanum(next(iter(ws)), self.C), calls, ws
 
     if self.miai_connected(optm):
       return '', calls, set()
@@ -919,7 +940,7 @@ class Position: # hex board
       print('\n    original position,  nothing to undo\n')
       return False
     else:
-      ch, where, self.miai_reply, self.miai_connections, self.ws, self.connection_graphs = self.H.pop()
+      ch, where, self.miai_reply, self.miai_connections, self.ws, self.connection_graphs, self.voltage = self.H.pop()
       self.brd = change_str(self.brd, where, ch)
     return True
 
@@ -1034,7 +1055,7 @@ def interact():
       dead = set()
       capb = set()
       capw = set()
-      n_undo = 0
+      brd = p.brd
       while True:
         d = p.dead()
         dead = dead.union(d)
@@ -1042,9 +1063,9 @@ def interact():
         capb = capb.union(cb)
         cw = p.captured(WCH)
         capw = capw.union(cw)
-        n_undo += p.fill_cells(d, BCH)
-        n_undo += p.fill_cells(cb, BCH)
-        n_undo += p.fill_cells(cw, WCH)
+        p.fill_cells_lite(d, BCH)
+        p.fill_cells_lite(cb, BCH)
+        p.fill_cells_lite(cw, WCH)
         if not (d or cb or cw):
           break
       print()
@@ -1052,8 +1073,7 @@ def interact():
       print("BCap:", " ".join([point_to_alphanum(x, p.C) for x in capb]))
       print("WCap:", " ".join([point_to_alphanum(x, p.C) for x in capw]))
       p.showboard()
-      for i in range(n_undo):
-        p.undo()
+      p.brd = brd
 
     elif (cmd[0] in PTS):
       p.requestmove(cmd[0] + ' ' + ''.join(cmd[1:]))
