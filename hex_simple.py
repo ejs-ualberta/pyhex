@@ -678,7 +678,7 @@ class Position: # hex board
 
     if recurse:
       opp_rnk = self.rank_moves_by_vc(optm, recurse=False)
-      for i in range(len(opp_rnk)):
+      for i in range(len(opp_rnk))[:5]:
         score[opp_rnk[i]] += (len(opp_rnk)-i)/len(opp_rnk)
 
     if self.H:
@@ -785,7 +785,7 @@ class Position: # hex board
     calls = 1
     ovc = set()
 
-    if self.miai_connected(ptm): # Also true if has_win
+    if self.miai_connected(ptm):
         ws = self.ws[ptm] | captured[ptm]
         return point_to_alphanum(next(iter(ws)), self.C), calls, ws
 
@@ -793,7 +793,7 @@ class Position: # hex board
       return '', calls, set()
 
     mustplay = {i for i in range(len(self.brd)) if self.brd[i] == ECH}
-    cells = [self.midpoint()] + self.rank_moves_by_vc(ptm) # self.CELL
+    cells = self.rank_moves_by_vc(ptm)
     #if not self.H:
     #  cells = [self.midpoint()] + cells
 
