@@ -285,8 +285,6 @@ class Position: # hex board
 
 
   def compute_voltage(self, ptm, voltages=None, max_delta=0.00001):
-    #WARNING Doesn't work yet
-    optm = oppCH(ptm)
     set1, set2 = (self.TOP_ROW, self.BTM_ROW) if ptm == BCH else (self.LFT_COL, self.RGT_COL)
     g, side1, side2 = self.connection_graphs[ptm]
     # Voltage flows from side1 to side2
@@ -325,7 +323,6 @@ class Position: # hex board
     return voltages
 
   def voltage_drops(self, ptm):
-    #WARNING Doesn't work yet
     g, side1, side2 = self.connection_graphs[ptm]
     #set1, set2 = (self.TOP_ROW, self.BTM_ROW) if ptm == BCH else (self.LFT_COL, self.RGT_COL)
     optm = oppCH(ptm)
@@ -679,8 +676,9 @@ class Position: # hex board
 
     if recurse:
       opp_rnk = self.rank_moves_by_vc(optm, recurse=False)
-      for i in range(len(opp_rnk)):
-        score[opp_rnk[i]] += 5 * (len(opp_rnk)-i)/len(opp_rnk)
+      orl = len(opp_rnk)
+      for i in range(orl):
+        score[opp_rnk[i]] += 5 * (1-i/orl)
 
     if self.H:
       miai_replies = self.miai_reply[ptm][self.H[-1][1]]
@@ -709,8 +707,10 @@ class Position: # hex board
     # Scores are arbitrary constants that seemed to work well
     #for i in spft:
     #  score[i] += 5
-    for i in self.voltage_drops(ptm)[:5]:
-      score[i] += 5
+    vdrops = self.voltage_drops(ptm)
+    vl = len(vdrops)
+    for i in range(vl):
+      score[vdrops[i]] += 5 * (1-i/vl)
     counts = sorted([(score[i], i) for i in range(len(self.brd))], reverse=True)
     if show_ranks:
       print("Cells:Ranks", " ".join([point_to_alphanum(rc[1], self.C) + ":" + str(rc[0]) for rc in counts])) 
