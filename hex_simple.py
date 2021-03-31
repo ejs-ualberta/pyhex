@@ -186,7 +186,7 @@ class Position: # hex board
       self.BTM_ROW.add(coord_to_point(self.R-1, c, self.C))
 
     self.connection_graphs = {BCH:self.get_connections(BCH), WCH:self.get_connections(WCH)}
-    self.miai_connections, self.miai_reply, self.ws = self.vcs_bp()
+    self.miai_connections, self.miai_reply, self.ws, self.vcs = self.vcs_bp()
     self.voltage = {BCH:self.compute_voltage(BCH), WCH:self.compute_voltage(WCH)}
 
     # dead cell patterns
@@ -474,14 +474,14 @@ class Position: # hex board
     ws = set()
     if (side1, side2) in vcs:
       ws = vcs[(side1, side2)]
-    return miai_conn, miai_reply, ws
+    return miai_conn, miai_reply, ws, vcs
 
   def vcs_bp(self):
     # Get miai info for both players
-    mcb, mrb, wsb = self.vc_search(BCH)
-    mcw, mrw, wsw = self.vc_search(WCH)
-    # return miai connections, then miai responses, and a winset if both sides are vc'd otherwise the empty set
-    return {BCH:mcb, WCH:mcw}, {BCH:mrb, WCH:mrw}, {BCH:wsb, WCH:wsw}
+    mcb, mrb, wsb, vcsb = self.vc_search(BCH)
+    mcw, mrw, wsw, vcsw = self.vc_search(WCH)
+    # return miai connections, then miai responses, and a winset if both sides are vc'd otherwise the empty set. Also vcs
+    return {BCH:mcb, WCH:mcw}, {BCH:mrb, WCH:mrw}, {BCH:wsb, WCH:wsw}, {BCH:vcsb, WCH:vcsw}
 
   #TODO: If we have a reply to an opponent probe that restores a connection, should we record that information?
 
@@ -516,10 +516,10 @@ class Position: # hex board
     return True
 
   def move(self, ch, where):
-    self.H.append((self.brd[where], where, self.miai_reply, self.miai_connections, self.ws, self.connection_graphs, deepcopy(self.voltage)))
+    self.H.append((self.brd[where], where, self.miai_reply, self.miai_connections, self.ws, self.connection_graphs, deepcopy(self.voltage), deepcopy(self.vcs)))
     self.brd = change_str(self.brd, where, ch)
     self.connection_graphs = {BCH:self.get_connections(BCH), WCH:self.get_connections(WCH)}
-    self.miai_connections, self.miai_reply, self.ws = self.vcs_bp()
+    self.miai_connections, self.miai_reply, self.ws, self.vcs = self.vcs_bp()
     self.voltage = self.update_voltage(ch, where) #{BCH:self.compute_voltage(BCH), WCH:self.compute_voltage(WCH)}
 
   def connected_cells(self, pt, ptm, side1, side2):
@@ -673,51 +673,37 @@ class Position: # hex board
     # Assign a score to each node based on whether it is virtually connected to other nodes/sides
     # and/or whether it is in a shortest winning path
     set1, set2 = (self.TOP_ROW, self.BTM_ROW) if ptm == BCH else (self.LFT_COL, self.RGT_COL)
+    _, side1, side2 = self.connection_graphs[ptm]
     optm = oppCH(ptm)
     score = [0] * len(self.brd)
 
     if recurse:
       opp_rnk = self.rank_moves_by_vc(optm, recurse=False)
       for i in range(len(opp_rnk))[:5]:
-        score[opp_rnk[i]] += (len(opp_rnk)-i)/len(opp_rnk)
+        score[opp_rnk[i]] += 5 #(len(opp_rnk)-i)/len(opp_rnk)
 
     if self.H:
       miai_replies = self.miai_reply[ptm][self.H[-1][1]]
       for mr in miai_replies:
         score[mr] += 12
 
-    # if ptm is miai connected then only play in miai
-    if not self.miai_connected(ptm):
-      for i in range(len(self.brd)):
-        if self.brd[i] != ECH:
-          continue
+    # Add to score of a position if it is is contained in a vc
+    vcs = self.vcs[ptm]
+    for i in range(len(self.brd)):
+      if self.brd[i] != ECH:
+        continue
 
-        # Find possible vcs
-        poss_vcs = set()
-        for c in self.nbrs[i]:
-          if self.brd[c] != ECH:
-            continue
-          for c1 in self.nbrs[c]:
-            if self.brd[c1] != ECH:
-              continue
-            elif c1 == i: continue
-            if c1 in self.nbrs[i]:
-              poss_vcs.add(tuple(sorted((c, c1))))
-
-        # Check each possible vc to see if it is an actual vc
-        for pvc in poss_vcs:
-          # Add to score if it could be a vc in the future
-          if self.brd[pvc[0]] == ECH and self.brd[pvc[1]] == ECH:
-            score[i] += 1
-
-          # Add to score if it is an actual vc or vc'd to the edge
-          s = self.nbrs[pvc[0]].intersection(self.nbrs[pvc[1]])
-          s.remove(i)
-          if not s:
-            if (pvc[0] in set1 and pvc[1] in set1) or (pvc[0] in set2 and pvc[1] in set2):
-              score[i] += 1
-          elif self.brd[list(s)[0]] == ptm:
-            score[i] += 1
+      for vc in vcs:
+        if vc[0] == i:
+          score[vc[0]] += 1
+          if vc[1] not in {side1, side2} and self.brd[vc[1]] == ECH:
+            score[vc[0]] += 1
+            score[vc[1]] += 1
+        elif vc[1] == i:
+          score[vc[1]] += 1
+          if vc[0] not in {side1, side2} and self.brd[vc[0]] == ECH:
+            score[vc[0]] += 1
+            score[vc[1]] += 1
 
     #spft = self.shortest_paths_from_to(*self.connection_graphs[ptm])
     # Scores are arbitrary constants that seemed to work well
@@ -769,7 +755,7 @@ class Position: # hex board
     return i
 
   def refresh(self):
-    self.miai_connections, self.miai_reply, self.ws = self.vcs_bp()
+    self.miai_connections, self.miai_reply, self.ws, self.vcs = self.vcs_bp()
 
   def fill_cells_lite(self, cells, ptm):
     i = 0
@@ -940,7 +926,7 @@ class Position: # hex board
       print('\n    original position,  nothing to undo\n')
       return False
     else:
-      ch, where, self.miai_reply, self.miai_connections, self.ws, self.connection_graphs, self.voltage = self.H.pop()
+      ch, where, self.miai_reply, self.miai_connections, self.ws, self.connection_graphs, self.voltage, self.vcs = self.H.pop()
       self.brd = change_str(self.brd, where, ch)
     return True
 
