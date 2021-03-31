@@ -679,8 +679,8 @@ class Position: # hex board
 
     if recurse:
       opp_rnk = self.rank_moves_by_vc(optm, recurse=False)
-      for i in range(len(opp_rnk))[:5]:
-        score[opp_rnk[i]] += 5 #(len(opp_rnk)-i)/len(opp_rnk)
+      for i in range(len(opp_rnk)):
+        score[opp_rnk[i]] += 5 * (len(opp_rnk)-i)/len(opp_rnk)
 
     if self.H:
       miai_replies = self.miai_reply[ptm][self.H[-1][1]]
