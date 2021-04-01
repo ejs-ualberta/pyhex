@@ -1,4 +1,5 @@
 # 6x6 board winning moves and time. After each run the board is cleared.
+# This was before voltage, times may be different now
 
 > ? x
 x-to-move: x wins ... d3

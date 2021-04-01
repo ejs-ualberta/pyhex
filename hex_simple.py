@@ -324,14 +324,18 @@ class Position: # hex board
 
   def voltage_drops(self, ptm):
     g, side1, side2 = self.connection_graphs[ptm]
-    #set1, set2 = (self.TOP_ROW, self.BTM_ROW) if ptm == BCH else (self.LFT_COL, self.RGT_COL)
+    set1, set2 = (self.TOP_ROW, self.BTM_ROW) if ptm == BCH else (self.LFT_COL, self.RGT_COL)
     optm = oppCH(ptm)
     voltage = self.voltage[ptm]
     vdrops = []
     for i in range(len(self.brd)):
       if self.brd[i] != ECH:
         continue
-      nbrs = g[i]
+      nbrs = self.nbrs[i]
+      if i in set1:
+        nbrs = nbrs | {side1}
+      if i in set2:
+        nbrs = nbrs | {side2}
       drop = 0.0
       for nbr in nbrs:
         if nbr < len(self.brd) and self.brd[nbr] == optm:
@@ -1028,7 +1032,18 @@ def interact():
         print("Argument must be one of", BCH, WCH)
         continue
       print()
-      p.rank_moves_by_vc(cmd[1], show_ranks=True)
+      empty = {i for i in range(len(p.brd)) if p.brd[i] == ECH}
+      order = p.rank_moves_by_vc(cmd[1])
+      order = [i for i in order if i in empty]
+      vs = [(order[i], i) for i in range(len(order))]
+      viz = list(p.brd)
+      for item in vs:
+        viz[item[0]] = str(item[1] + 1)
+      cols = [None for i in range(len(p.brd))]
+      for i in range(len(p.brd)):
+        cols[i] = {BCH:stonecolors[BLACK], WCH:stonecolors[WHITE], ECH:None}[p.brd[i]]
+      p.show_big_board(viz, cols)
+      print("Rank Ordering:\n\t" +  " ".join([point_to_alphanum(i, p.C) for i in order]))
 
     #elif cmd[0] == "mws":
       #print(p.get_miai_ws(cmd[1]))
@@ -1069,10 +1084,22 @@ def interact():
 
     elif (cmd[0] == 'v'):
       try:
-        v = p.compute_voltage(cmd[1])
+        #v = p.compute_voltage(cmd[1])
+        #v = [str(int(round(100*f))) for f in v]
+        #for i in range(len(p.brd)):
+          #print(point_to_alphanum(i, p.C), v[i])
+        #p.show_big_board(v, [None for i in range(len(p.brd))])
+        vdrops = p.voltage_drops(cmd[1])
+        vs = [(vdrops[i], i) for i in range(len(vdrops))]
+        vs = sorted(vs)
+        viz = list(p.brd)
+        for item in vs:
+          viz[item[0]] = str(item[1] + 1)
+        cols = [None for i in range(len(p.brd))]
         for i in range(len(p.brd)):
-          print(point_to_alphanum(i, p.C), v[i])
-        print([point_to_alphanum(i, p.C) for i in p.voltage_drops(cmd[1])])
+          cols[i] = {BCH:stonecolors[BLACK], WCH:stonecolors[WHITE], ECH:None}[p.brd[i]]
+        p.show_big_board(viz, cols)
+        print("Voltage Ordering:\n\t" + " ".join([point_to_alphanum(i, p.C) for i in vdrops]))
       except:
         print("Please supply a valid player to compute voltages for.")
 
