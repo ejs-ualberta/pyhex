@@ -1,9 +1,7 @@
 """
 negamax small-board hex solver
 """
-from copy import deepcopy
 import time
-import math
 from collections import deque
 import numpy as np
 
@@ -63,29 +61,6 @@ def char_to_color(c):
 escape_ch           = '\033['
 colorend, textcolor = escape_ch + '0m', escape_ch + '0;37m'
 stonecolors         = (textcolor, escape_ch + '0;35m', escape_ch + '0;32m')
-
-
-class UnionFind:
-  def __init__(self):
-    self.parents = {}
-
-  def union(self, elem1, elem2):
-    e1 = self.find(elem1)
-    e2 = self.find(elem2)
-    if e1 == e2:
-      return
-    self.parents[e2] = e1;
-
-  def find(self, elem):
-    while elem in self.parents:
-      p = self.parents[elem]
-      if p in self.parents:
-        self.parents[elem] = self.parents[p]
-      elem = p
-    return elem;
-
-  def __str__(self):
-    return str(self.parents)
 
 
 class Pattern:
@@ -179,8 +154,6 @@ class Position: # hex board
       self.BTM_ROW.add(coord_to_point(self.R-1, c, self.C))
 
     self.connection_graphs = {BCH:self.get_connections(BCH), WCH:self.get_connections(WCH)}
-    self.miai_connections, self.miai_reply, self.ws, self.vcs = self.vcs_bp()
-    self.voltage = {BCH:self.compute_voltage(BCH), WCH:self.compute_voltage(WCH)}
 
     # dead cell patterns
     self.dc_patterns = [
@@ -277,214 +250,6 @@ class Position: # hex board
     ]
 
 
-  def compute_voltage(self, ptm, voltages=None, max_delta=0.00001):
-    set1, set2 = (self.TOP_ROW, self.BTM_ROW) if ptm == BCH else (self.LFT_COL, self.RGT_COL)
-    g, side1, side2 = self.connection_graphs[ptm]
-    # Voltage flows from side1 to side2
-    if not voltages:
-      voltages = [0.0] * (self.R * self.C) + [1.0, 0.0]
-    err = max_delta
-    keys = g.keys() - {side1, side2} # Don't update source or sink
-    occ = {i for i in range(len(self.brd)) if self.brd[i] == ptm}
-    empty = keys - occ
-    # TODO: Better ordering for iteratively computing voltages?
-    while err >= max_delta:
-      err = 0.0
-      for node in occ:
-        nbrs = self.nbrs[node]
-        if node in set1:
-          nbrs = nbrs | {side1}
-        if node in set2:
-          nbrs = nbrs | {side2}
-        v = 0.0
-        for nbr in nbrs:
-          v = max(v, voltages[nbr])
-        err = max(err, v - voltages[node])
-        voltages[node] = v
-      for node in empty:
-        nbrs = self.nbrs[node]
-        if node in set1:
-          nbrs = nbrs | {side1}
-        if node in set2:
-          nbrs = nbrs | {side2}
-        v = 0.0
-        for nbr in nbrs:
-          v += voltages[nbr]
-        v /= len(nbrs)
-        err = max(err, v - voltages[node])
-        voltages[node] = v
-    return voltages
-
-  def voltage_drops(self, ptm):
-    g, side1, side2 = self.connection_graphs[ptm]
-    set1, set2 = (self.TOP_ROW, self.BTM_ROW) if ptm == BCH else (self.LFT_COL, self.RGT_COL)
-    optm = oppCH(ptm)
-    voltage = self.voltage[ptm]
-    vdrops = []
-    for i in range(len(self.brd)):
-      if self.brd[i] != ECH:
-        continue
-      nbrs = self.nbrs[i]
-      if i in set1:
-        nbrs = nbrs | {side1}
-      if i in set2:
-        nbrs = nbrs | {side2}
-      drop = 0.0
-      for nbr in nbrs:
-        if nbr < len(self.brd) and self.brd[nbr] == optm:
-          continue
-        drop += max(0, voltage[nbr] - voltage[i])
-      vdrops.append((drop, i))
-      vdrops = sorted(vdrops, reverse=True)
-    return vdrops
-
-  def update_voltage(self, ptm, move, max_delta=0.0001):
-    optm = oppCH(ptm)
-    vp = self.voltage[ptm]
-    vo = self.voltage[optm]
-    vo[move] = 0.0
-    return {ptm:self.compute_voltage(ptm, voltages=vp, max_delta=max_delta), optm:self.compute_voltage(optm, voltages=vo, max_delta=max_delta)}
-
-  def vc_search(self, ptm):
-    # Search for virtual connections
-    # Does not find all virtual connections but can detect 432s.
-
-    def sort2(l):
-      if l[0] < l[1]:
-        return l
-      return (l[1], l[0])
-
-    def construct_miai(conn, miai_build, miai_reply):
-      # Find miai by building virtual connections from pairs of semiconnections
-      if conn not in miai_build:
-        return
-      m = miai_build[conn]
-      for c in m:
-        construct_miai(c, miai_build, miai_reply)
-      scs = [i for i in m if len(i) == 3]
-      subs = {(sc, sc1) for sc in scs for sc1 in scs if sc != sc1}
-      for pair in subs:
-        b1 = pair[0][2]
-        b2 = pair[1][2]
-        miai_reply[b1].add(b2)
-        miai_reply[b2].add(b1)
-
-    optm = oppCH(ptm)
-    _, side1, side2 = self.connection_graphs[ptm]
-    set1, set2 = (self.TOP_ROW, self.BTM_ROW) if ptm == BCH else (self.LFT_COL, self.RGT_COL)
-    cells = {i for i in range(len(self.brd)) if self.brd[i] != optm}
-    c_n_s = cells | {side1, side2}
-    miai_conn = UnionFind()
-    miai_reply = [set() for i in range(len(self.brd))]
-    scs = {}
-    vcs = {}
-    miai_build = {}
-
-    # Initialize vcs
-    for i in range(len(self.brd)):
-      if self.brd[i] == optm:
-        continue
-      for j in self.nbrs[i]:
-        if self.brd[j] == optm:
-          continue
-        s = sort2((i, j))
-        if s not in vcs:
-          vcs[s] = set()
-        if self.brd[i] == ptm and self.brd[j] == ptm:
-          miai_conn.union(i, j)
-    for loc in set1:
-      ch = self.brd[loc]
-      if ch == optm:
-        continue
-      elif ch == ptm:
-        miai_conn.union(side1, loc)
-      vcs[(loc, side1)] = set()
-    for loc in set2:
-      ch = self.brd[loc]
-      if ch == optm:
-        continue
-      elif ch == ptm:
-        miai_conn.union(side2, loc)
-      vcs[(loc, side2)] = set()
-
-    loop = True
-    while loop:
-      loop = False
-      # Find new vcs/scs from vcs
-      for b in cells:
-        # Find vcs that both end at b
-        enb = {vc for vc in vcs.keys() if b in vc}
-        for vc in enb:
-          for vc1 in enb - {vc}:
-            # Get the ends of each vc
-            a = next(iter(set(vc)-{b}))
-            c = next(iter(set(vc1)-{b}))
-            s = sort2((a, c))
-            k = s + (b,)
-            if s in vcs:
-              continue
-            if k in scs:
-              continue
-            # Found a new vc or sc
-            loop = True
-            if self.brd[b] == ptm:
-              # Found a virtual connection
-              # Carrier for this vc is the union of the carriers for vc and vc1
-              vcs[s] = vcs[vc] | vcs[vc1]
-              # If both sides are occupied with a ptm stone update connectivity
-              if (s[0] in {side1, side2} or self.brd[s[0]] == ptm) and (s[1] in {side1, side2} or self.brd[s[1]] == ptm):
-                miai_conn.union(a, c)
-              miai_build[s] = (vc, vc1)
-            else:
-              # Found a semiconnection
-              # b is the key, the carrier is the union of the carriers and also includes b
-              scs[k] = vcs[vc] | vcs[vc1] | {b}
-              miai_build[k] = (vc, vc1)
-
-      # Find new vcs from scs
-      for a in c_n_s:
-        for c in c_n_s:
-          s = sort2((a, c))
-          if s in vcs:
-            continue
-          # Get all semiconnections with common ends
-          enb = {sc for sc in scs.keys() if sc[:2] == s}
-          subs = {(sc, sc1) for sc in enb for sc1 in enb if sc != sc1}
-          for pair in subs:
-            sc1 = pair[0]
-            sc2 = pair[1]
-            set1 = scs[sc1]
-            set2 = scs[sc2]
-            # If the intersection of their carriers is empty then they form a new vc
-            if not set1 & set2:
-              vcs[s] = set1 | set2
-              miai_build[s] = (sc1, sc2)
-              if (s[0] in {side1, side2} or self.brd[s[0]] == ptm) and (s[1] in {side1, side2} or self.brd[s[1]] == ptm):
-                miai_conn.union(a, c)
-                construct_miai(s, miai_build, miai_reply)
-              loop = True
-              break
-
-    ws = set()
-    if (side1, side2) in vcs:
-      ws = vcs[(side1, side2)]
-    return miai_conn, miai_reply, ws, vcs
-
-  def vcs_bp(self):
-    # Get miai info for both players
-    mcb, mrb, wsb, vcsb = self.vc_search(BCH)
-    mcw, mrw, wsw, vcsw = self.vc_search(WCH)
-    # return miai connections, then miai responses, and a winset if both sides are vc'd otherwise the empty set. Also vcs
-    return {BCH:mcb, WCH:mcw}, {BCH:mrb, WCH:mrw}, {BCH:wsb, WCH:wsw}, {BCH:vcsb, WCH:vcsw}
-
-  #TODO: If we have a reply to an opponent probe that restores a connection, should we record that information?
-
-  def miai_connected(self, ptm):
-    # Check efficiently whether ptm stones are miai connected
-    c = self.miai_connections[ptm]
-    conn, side1, side2 = self.connection_graphs[ptm]
-    return c.find(side1) == c.find(side2)
-
   def requestmove(self, cmd):
     ret, cmd = False, cmd.split()
     if len(cmd) != 2:
@@ -510,11 +275,9 @@ class Position: # hex board
     return True
 
   def move(self, ch, where):
-    self.H.append((self.brd[where], where, self.miai_reply, self.miai_connections, self.ws, self.connection_graphs, deepcopy(self.voltage), deepcopy(self.vcs)))
+    self.H.append((self.brd[where], where, self.connection_graphs))
     self.brd = change_str(self.brd, where, ch)
     self.connection_graphs = {BCH:self.get_connections(BCH), WCH:self.get_connections(WCH)}
-    self.miai_connections, self.miai_reply, self.ws, self.vcs = self.vcs_bp()
-    self.voltage = self.update_voltage(ch, where) #{BCH:self.compute_voltage(BCH), WCH:self.compute_voltage(WCH)}
 
   def connected_cells(self, pt, ptm, side1, side2):
     # Find all ptm-occupied cells connected to a particular ptm-occupied cell. Cells are connected if
@@ -577,148 +340,6 @@ class Position: # hex board
           connections[c] = cr
     return connections, side1, side2
 
-  def live_cells(self, ptm):
-    # Warning!!! Slow for larger boards!
-    connections, side1, side2 = self.get_connections(ptm)
-    paths = self.induced_paths_from_to(connections, set(), side1, side2)
-    live = set()
-    for p in paths:
-      for pt in p:
-        live.add(pt)
-    if side1 in live:
-      live.remove(side1)
-    if side2 in live:
-      live.remove(side2)
-    return live
-
-  def induced_paths_from_to(self, connections, visited, node, end):
-    # Warning!!! Slow for larger boards!
-    if node == end:
-      return {(end,)}
-    visited.add(node)
-    paths = set()
-    candidates = set()
-    for n in connections[node]:
-      # If the function was called on this node it must be a candidate
-      # So the only node that could be in visited that is connected to it
-      # would be the previous node. So don't go back to that one.
-      if n in visited:
-        continue
-      is_candidate = True
-      for n1 in connections[n]:
-        if n1 in visited and n1 != node:
-          is_candidate = False
-          break
-      if is_candidate:
-        candidates.add(n)
-
-    if not candidates:
-      visited.remove(node)
-      # Path does not end at end so discard it
-      return {}
-    for n in candidates:
-      p1 = self.induced_paths_from_to(connections, visited, n, end)
-      for p in p1:
-        paths.add((node,) + p)
-    visited.remove(node)
-    return paths
-
-  def shortest_paths_from_to(self, connections, node, end):
-    # Find the nodes contained in all shortest paths between two nodes using modified bfs
-    # Don't need to find the exact paths, just backtrack from end to start using parents
-    parents = [[] for i in range(len(self.brd) + 2)]
-    dists = [math.inf for i in range(len(self.brd)+2)]
-    q = deque([node])
-    dists[node] = 0
-    while q:
-      n = q.popleft()
-      if n == end:
-        break
-      for n1 in connections[n]:
-        d = dists[n] + 1
-        if dists[n1] > d:
-          dists[n1] = d
-          parents[n1] = [n]
-          q.append(n1)
-        elif dists[n1] == d:
-          parents[n1].append(n)
-
-    # Find all nodes in the shortest paths, add them to seen
-    seen = {}
-    q = deque([[end]])
-    while q:
-      p = q.popleft()
-      for v in p:
-        if v not in seen:
-          seen[v] = 1
-        else:
-          seen[v] += 1
-        q.append(parents[v])
-
-    if node in seen:
-      seen.pop(node)
-    if end in seen:
-      seen.pop(end)
-    #counts = sorted([(seen[key], key) for key in seen.keys()])
-    #return [k[1] for k in counts]
-    return seen.keys()
-
-  def rank_moves_by_vc(self, ptm, show_ranks=False, recurse=True):
-    # Assign a score to each node based on whether it is virtually connected to other nodes/sides
-    # and/or whether it is in a shortest winning path
-    set1, set2 = (self.TOP_ROW, self.BTM_ROW) if ptm == BCH else (self.LFT_COL, self.RGT_COL)
-    _, side1, side2 = self.connection_graphs[ptm]
-    optm = oppCH(ptm)
-    score = [0] * len(self.brd)
-
-    if recurse:
-      opp_rnk = self.rank_moves_by_vc(optm, recurse=False)
-      orl = len(opp_rnk)
-      for i in range(orl):
-        score[opp_rnk[i]] += 5 * (1-i/orl)
-
-    if self.H:
-      miai_replies = self.miai_reply[ptm][self.H[-1][1]]
-      for mr in miai_replies:
-        score[mr] += 100
-
-    # Add to score of a position if it is is contained in a vc
-    vcs = self.vcs[ptm]
-    for i in range(len(self.brd)):
-      if self.brd[i] != ECH:
-        continue
-
-      for vc in vcs:
-        if vc[0] == i:
-          score[vc[0]] += 1
-          if vc[1] not in {side1, side2} and self.brd[vc[1]] == ECH:
-            score[vc[0]] += 1
-            score[vc[1]] += 1
-        elif vc[1] == i:
-          score[vc[1]] += 1
-          if vc[0] not in {side1, side2} and self.brd[vc[0]] == ECH:
-            score[vc[0]] += 1
-            score[vc[1]] += 1
-
-    #spft = self.shortest_paths_from_to(*self.connection_graphs[ptm])
-    # Scores are arbitrary constants that seemed to work well
-    #for i in spft:
-    #  score[i] += 5
-    vdrops = self.voltage_drops(ptm)
-    vl = len(vdrops)
-    for i in range(vl):
-      v_i = vdrops[i]
-      score[v_i[1]] += 5*v_i[0]
-    counts = sorted([(score[i], i) for i in range(len(self.brd))], reverse=True)
-    if show_ranks:
-      print("Cells:Ranks", " ".join([point_to_alphanum(rc[1], self.C) + ":" + str(rc[0]) for rc in counts])) 
-    return [i[1] for i in counts]
-
-  def midpoint(self):
-    x = self.C // 2
-    y = self.R // 2 + self.R % 2 - 1
-    return coord_to_point(y, x, self.C)
-
   def dead(self):
     # Uses patterns to find dead cells.
     # Does not find all dead cells.
@@ -752,66 +373,47 @@ class Position: # hex board
         i += 1
     return i
 
-  def refresh(self):
-    self.miai_connections, self.miai_reply, self.ws, self.vcs = self.vcs_bp()
-
-  def fill_cells_lite(self, cells, ptm):
-    i = 0
-    for c in cells:
-      if self.brd[c] == ECH:
-        self.brd = change_str(self.brd, c, ptm)
-        i += 1
-    return i
-
   def win_move(self, ptm, captured={BCH:set(), WCH:set()}):
     # assume neither player has won yet
     optm = oppCH(ptm) 
     calls = 1
     ovc = set()
 
-    if self.miai_connected(ptm):
-        ws = self.ws[ptm] | captured[ptm]
-        return point_to_alphanum(next(iter(ws)), self.C), calls, ws
+    g, side1, side2 = self.connection_graphs[ptm]
+    if side1 in g[side2]:
+      move = next(iter(captured[ptm]))
+      pt = point_to_alphanum(move, self.C)
+      return pt, calls, captured[ptm]
 
     mustplay = {i for i in range(len(self.brd)) if self.brd[i] == ECH}
-    cells = self.rank_moves_by_vc(ptm)
-    #if not self.H:
-    #  cells = [self.midpoint()] + cells
 
     while len(mustplay) > 0:
-      move = None
-      for i in range(len(cells)):
-        mv = cells[i]
-        if mv in mustplay:
-          move = mv
-          cells = cells[i+1:]
-          break
+      move = next(iter(mustplay))
 
-      brd = self.brd
-      prev_config = (self.miai_connections, self.miai_reply, self.ws, self.vcs)
-      self.brd = change_str(self.brd, move, ptm)
+      self.move(ptm, move)
+      g, side1, side2 = self.connection_graphs[ptm]
 
       pcap = captured[ptm]
       ocap = captured[optm]
+      n_undo = 0
       while True:
         d = self.dead()
-        self.fill_cells_lite(d, ptm)
+        n_undo += self.fill_cells(d, ptm)
         cp = self.captured(ptm)
         pcap = pcap | cp
-        self.fill_cells_lite(cp, ptm)
+        n_undo += self.fill_cells(cp, ptm)
         co = self.captured(optm)
         ocap = ocap | co
-        self.fill_cells_lite(co, optm)
+        n_undo += self.fill_cells(co, optm)
         if not (d or cp or co):
           break
-      self.refresh()
 
-      if self.miai_connected(ptm): # Also true if has_win
+      if side1 in g[side2]:
         pt = point_to_alphanum(move, self.C)
-        ws = self.ws[ptm] | pcap
-        self.brd = brd
-        self.miai_connections, self.miai_reply, self.ws, self.vcs = prev_config
-        return pt, calls, ws.union({move})
+        ws = {move} | pcap
+        for i in range(n_undo + 1):
+          self.undo()
+        return pt, calls, ws
 
       omv, ocalls, oset = self.win_move(optm, {ptm:pcap, optm:ocap})
 
@@ -819,14 +421,14 @@ class Position: # hex board
       if not omv: # opponent has no winning response to ptm move
         oset.add(move)
         pt = point_to_alphanum(move, self.C)
-        self.brd = brd
-        self.miai_connections, self.miai_reply, self.ws, self.vcs = prev_config
+        for i in range(n_undo + 1):
+          self.undo()
         return pt, calls, oset
 
       ovc = ovc.union(oset)
       mustplay = mustplay.intersection(oset)
-      self.brd = brd
-      self.miai_connections, self.miai_reply, self.ws, self.vcs = prev_config
+      for i in range(n_undo + 1):
+        self.undo()
 
     return '', calls, ovc
 
@@ -895,41 +497,21 @@ class Position: # hex board
     pretty += spc + '+\n'
     print(pretty)
 
-  def show_miai_info(self, ch):
-    sides = {BCH:["T", "B"],WCH:["L", "R"]}
-    miai_colour = escape_ch + '0;31m'
-    c = self.miai_connections[ch]
-    conn, side1, side2 = self.connection_graphs[ch]
-    info = [ECH] * (self.R * self.C + 2)
-    colours = [None for i in info]
-    for i in range(len(self.brd)):
-      if self.brd[i] == ch:
-        pos = c.find(i)
-        if pos >= len(self.brd):
-          info[i] = sides[ch][pos % len(self.brd)]
-        else:
-          info[i] = point_to_alphanum(pos, self.C)
-        colours[i] = miai_colour
-      elif self.brd[i] == ECH:
-        mr = [r for r in self.miai_reply[ch][i] if self.brd[r] == ECH]
-        if mr:
-          info[i] = point_to_alphanum(mr[0], self.C)
-    self.show_big_board(info, colours)
-    print("Miai connected:", c.find(side1)==c.find(side2))
-
   def undo(self):  # pop last meta-move
     if not self.H:
       print('\n    original position,  nothing to undo\n')
       return False
     else:
-      ch, where, self.miai_reply, self.miai_connections, self.ws, self.connection_graphs, self.voltage, self.vcs = self.H.pop()
+      ch, where, self.connection_graphs = self.H.pop()
       self.brd = change_str(self.brd, where, ch)
     return True
 
   def msg(self, ch):
     optm = oppCH(ch)
-    if self.miai_connected(ch): return(ch + ' has won')
-    elif self.miai_connected(optm): return(optm + ' has won')
+    gptm, pside1, pside2 = self.connection_graphs[ch]
+    goptm, oside1, oside2 = self.connection_graphs[optm]
+    if pside1 in gptm[pside2]: return(ch + ' has won')
+    elif oside1 in goptm[oside2]: return(optm + ' has won')
     else:
       st = time.time()
       wm, calls, vc = self.win_move(ch)
@@ -968,15 +550,12 @@ def printmenu():
   print('  h                              help menu')
   print('  s                         show the board')
   print('  ? x|o      solve the position for x or o')
-  print('  z n         change the board size to nxn')
+  print('  z                         show the board')
   print('  x b2                          play x b 2')
   print('  o e3                          play o e 3')
   print('  . a2                           erase a 2')
   print('  u                                   undo')
-  print('  m                      display miai info')
-  print('  c               show dead/captured cells')
-  print('  v                           show voltage')
-  print('  rm x        show the move rankings for x')
+  print('  c               Show dead/captured cells')
   print('  sv                  save the game as sgf')
   print('  ld                  load a game from sgf')
   print('  [return]                            quit')
@@ -1016,37 +595,6 @@ def interact():
       if len(cmd) == 2 and cmd[1] in {BCH, WCH}: 
           print(p.msg(cmd[1]))
 
-    #elif cmd[0] == 'l':
-      #print(" ".join(sorted([point_to_alphanum(x, p.C) for x in p.live_cells(cmd[1])])))
-
-    elif cmd[0] == "rm":
-      if len(cmd) != 2:
-        print("Command requires one argument.")
-        continue
-      if cmd[1] not in {BCH, WCH}:
-        print("Argument must be one of", BCH, WCH)
-        continue
-      print()
-      empty = {i for i in range(len(p.brd)) if p.brd[i] == ECH}
-      order = p.rank_moves_by_vc(cmd[1])
-      order = [i for i in order if i in empty]
-      vs = [(order[i], i) for i in range(len(order))]
-      viz = list(p.brd)
-      for item in vs:
-        viz[item[0]] = str(item[1] + 1)
-      cols = [None for i in range(len(p.brd))]
-      for i in range(len(p.brd)):
-        cols[i] = {BCH:stonecolors[BLACK], WCH:stonecolors[WHITE], ECH:None}[p.brd[i]]
-      p.show_big_board(viz, cols)
-      print("Rank Ordering:\n\t" +  " ".join([point_to_alphanum(i, p.C) for i in order]))
-
-    #elif cmd[0] == "mws":
-      #print(p.get_miai_ws(cmd[1]))
-
-    elif cmd[0] == "m":
-      if len(cmd) == 2 and cmd[1] in {WCH, BCH}:
-        p.show_miai_info(cmd[1])
-
     elif cmd[0] == "c":
       dead = set()
       capb = set()
@@ -1076,28 +624,6 @@ def interact():
 
     elif (cmd[0] == 's'):
       p.showboard()
-
-    elif (cmd[0] == 'v'):
-      try:
-        #v = p.compute_voltage(cmd[1])
-        #v = [str(int(round(100*f))) for f in v]
-        #for i in range(len(p.brd)):
-          #print(point_to_alphanum(i, p.C), v[i])
-        #p.show_big_board(v, [None for i in range(len(p.brd))])
-        vdrops = p.voltage_drops(cmd[1])
-        vdrops = [pair[1] for pair in vdrops]
-        vs = [(vdrops[i], i) for i in range(len(vdrops))]
-        vs = sorted(vs)
-        viz = list(p.brd)
-        for item in vs:
-          viz[item[0]] = str(item[1] + 1)
-        cols = [None for i in range(len(p.brd))]
-        for i in range(len(p.brd)):
-          cols[i] = {BCH:stonecolors[BLACK], WCH:stonecolors[WHITE], ECH:None}[p.brd[i]]
-        p.show_big_board(viz, cols)
-        print("Voltage Ordering:\n\t" + " ".join([point_to_alphanum(i, p.C) for i in vdrops]))
-      except:
-        print("Please supply a valid player to compute voltages for.")
 
     elif cmd[0] == 'sv':
       if len(cmd) != 2:
