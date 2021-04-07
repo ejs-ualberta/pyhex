@@ -1,6 +1,6 @@
 import unittest
 import time
-from hex_simple import Position, BCH, ECH, WCH, PTS, alphanum_to_point
+from hex_simple import Position, BCH, ECH, WCH, PTS, alphanum_to_point, point_to_alphanum
 import random
 import os
 from sgf_parse import SgfTree
@@ -41,16 +41,22 @@ class TestHex(unittest.TestCase):
     #@unittest.skip("Takes a long time")
     def test_correct(self):
         pos = Position(5,5)
+        start = time.time()
         for i in range(25):
             pos.move(BCH, i)
+            pos.showboard()
             st = time.time()
-            print("Moved to", i)
+            print("Moved to", point_to_alphanum(i, pos.C))
             if i in {0, 1, 2, 3, 5, 10, 24, 23, 22, 21, 19, 14}:
-                self.assertTrue(pos.win_move(WCH)[0])
+                pt = pos.win_move(WCH)[0]
+                self.assertTrue(pt)
+                print(WCH + " wins at " + pt)
             else:
                 self.assertFalse(pos.win_move(WCH)[0])
+                print(BCH + " wins")
             pos.undo()
             print("%.4f" % (time.time() - st) + 's \n')
+        print("%.4f" % (time.time() - start) + 's total\n')
 
 
     @unittest.skip("Takes a long time")

@@ -1,7 +1,7 @@
 """
 negamax small-board hex solver
 """
-from copy import deepcopy
+from copy import copy
 import time
 import math
 from collections import deque
@@ -283,6 +283,8 @@ class Position: # hex board
     # Voltage flows from side1 to side2
     if not voltages:
       voltages = [0.0] * (self.R * self.C) + [1.0, 0.0]
+    else:
+      voltages = copy(voltages)
     err = max_delta
     keys = g.keys() - {side1, side2} # Don't update source or sink
     occ = {i for i in range(len(self.brd)) if self.brd[i] == ptm}
@@ -510,11 +512,11 @@ class Position: # hex board
     return True
 
   def move(self, ch, where):
-    self.H.append((self.brd[where], where, self.miai_reply, self.miai_connections, self.ws, self.connection_graphs, deepcopy(self.voltage), deepcopy(self.vcs)))
+    self.H.append((self.brd[where], where, self.miai_reply, self.miai_connections, self.ws, self.connection_graphs, self.voltage, self.vcs))
     self.brd = change_str(self.brd, where, ch)
     self.connection_graphs = {BCH:self.get_connections(BCH), WCH:self.get_connections(WCH)}
     self.miai_connections, self.miai_reply, self.ws, self.vcs = self.vcs_bp()
-    self.voltage = self.update_voltage(ch, where) #{BCH:self.compute_voltage(BCH), WCH:self.compute_voltage(WCH)}
+    self.voltage = self.update_voltage(ch, where)
 
   def connected_cells(self, pt, ptm, side1, side2):
     # Find all ptm-occupied cells connected to a particular ptm-occupied cell. Cells are connected if
@@ -753,7 +755,15 @@ class Position: # hex board
     return i
 
   def refresh(self):
+    self.connection_graphs = {BCH:self.get_connections(BCH), WCH:self.get_connections(WCH)}
     self.miai_connections, self.miai_reply, self.ws, self.vcs = self.vcs_bp()
+    self.voltage = {BCH:self.compute_voltage(BCH), WCH:self.compute_voltage(WCH)}
+
+  def get_config(self):
+    return (self.brd, self.miai_reply, self.miai_connections, self.ws, self.connection_graphs, self.voltage, self.vcs)
+
+  def restore_config(self, config):
+    self.brd, self.miai_reply, self.miai_connections, self.ws, self.connection_graphs, self.voltage, self.vcs = config
 
   def fill_cells_lite(self, cells, ptm):
     i = 0
@@ -770,8 +780,8 @@ class Position: # hex board
     ovc = set()
 
     if self.miai_connected(ptm):
-        ws = self.ws[ptm] | captured[ptm]
-        return point_to_alphanum(next(iter(ws)), self.C), calls, ws
+      ws = self.ws[ptm] | captured[ptm]
+      return point_to_alphanum(next(iter(ws)), self.C), calls, ws
 
     mustplay = {i for i in range(len(self.brd)) if self.brd[i] == ECH}
     cells = self.rank_moves_by_vc(ptm)
@@ -787,8 +797,7 @@ class Position: # hex board
           cells = cells[i+1:]
           break
 
-      brd = self.brd
-      prev_config = (self.miai_connections, self.miai_reply, self.ws, self.vcs)
+      prev_config = self.get_config()
       self.brd = change_str(self.brd, move, ptm)
 
       pcap = captured[ptm]
@@ -809,8 +818,7 @@ class Position: # hex board
       if self.miai_connected(ptm): # Also true if has_win
         pt = point_to_alphanum(move, self.C)
         ws = self.ws[ptm] | pcap
-        self.brd = brd
-        self.miai_connections, self.miai_reply, self.ws, self.vcs = prev_config
+        self.restore_config(prev_config)
         return pt, calls, ws.union({move})
 
       omv, ocalls, oset = self.win_move(optm, {ptm:pcap, optm:ocap})
@@ -819,14 +827,12 @@ class Position: # hex board
       if not omv: # opponent has no winning response to ptm move
         oset.add(move)
         pt = point_to_alphanum(move, self.C)
-        self.brd = brd
-        self.miai_connections, self.miai_reply, self.ws, self.vcs = prev_config
+        self.restore_config(prev_config)
         return pt, calls, oset
 
       ovc = ovc.union(oset)
       mustplay = mustplay.intersection(oset)
-      self.brd = brd
-      self.miai_connections, self.miai_reply, self.ws, self.vcs = prev_config
+      self.restore_config(prev_config)
 
     return '', calls, ovc
 
