@@ -1,18 +1,17 @@
-> ? x
-x-to-move: x wins ... d4
-118719 calls
-68676.2121s
+TODO:
+	? x
+	x a2 ? o
 
 
-> x a2
+> x c2
 > ? o
-o-to-move: o wins ... d3
-391865 calls
-159372.8114s
+o-to-move: x wins 
+74985 calls
+12329.4851s 
 
 
 > x e2
 > ? o
 o-to-move: x wins 
-59511 calls
-25338.6061s
+56131 calls
+12446.3483s
