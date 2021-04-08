@@ -1,0 +1,21 @@
+\documentclass{article}
+
+\usepackage{geometry}
+\geometry{margin=1in, headheight=17pt, includehead}
+
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhf{}
+\rhead{\today}
+
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage[utf8]{inputenc}
+
+\begin{document}
+\section*{Voltage}
+There are two important new functions: compute\_voltage and voltage\_drops. The function compute\_voltage finds the "voltage" across the board for a particular player by iteratively averaging the voltage of each empty cell with its neighbours that are either empty or filled with a ptm-stone. One side of the board has voltage 1.0 and the other has voltage 0.0. Cells filled with ptm-stones take on the maximum of the voltages of their neighbours. Then voltage\_drops takes these voltages and finds for each cell the voltage drops between it and its neighbours, then adds them all together. The cells are then put in order from smallest to largest voltage drop. This turns out to be a decent indicator of what moves may be good to take. So we add the voltage information to rank\_moves\_by\_vc, which makes the program much faster. To find a full, more optimized version of this program, it is the version in the pyhex directory. Another thing to note is there is a new command for viewing how all the cells are ranked by voltage drop.
+\section*{Further reading:}
+	https://www.cs.auckland.ac.nz/courses/compsci767s2c/resources/VAnshelevich-ARTINT.pdf (The same pdf as in the previous README)
+
+\end{document}
