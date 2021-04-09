@@ -425,21 +425,20 @@ class Position: # hex board
             k = s + (b,)
             if s in vcs:
               continue
-            if k in scs:
-              continue
             # Found a new vc or sc
-            loop = True
             if self.brd[b] == ptm:
               # Found a virtual connection
               # Carrier for this vc is the union of the carriers for vc and vc1
+              loop = True
               vcs[s] = vcs[vc] | vcs[vc1]
               # If both sides are occupied with a ptm stone update connectivity
               if (s[0] in {side1, side2} or self.brd[s[0]] == ptm) and (s[1] in {side1, side2} or self.brd[s[1]] == ptm):
                 miai_conn.union(a, c)
               miai_build[s] = (vc, vc1)
-            else:
+            elif k not in scs:
               # Found a semiconnection
               # b is the key, the carrier is the union of the carriers and also includes b
+              loop = True
               scs[k] = vcs[vc] | vcs[vc1] | {b}
               miai_build[k] = (vc, vc1)
 
@@ -516,7 +515,14 @@ class Position: # hex board
     self.brd = change_str(self.brd, where, ch)
     self.connection_graphs = {BCH:self.get_connections(BCH), WCH:self.get_connections(WCH)}
     self.miai_connections, self.miai_reply, self.ws, self.vcs = self.vcs_bp()
-    self.voltage = self.update_voltage(ch, where)
+
+    bv = self.voltage[BCH]
+    if ch in {WCH, ECH}:
+      bv[where] = 0.0
+    wv = self.voltage[WCH]
+    if ch in {BCH, ECH}:
+      wv[where] = 0.0
+    self.voltage = {BCH:self.compute_voltage(BCH, bv), WCH:self.compute_voltage(WCH, wv)}
 
   def connected_cells(self, pt, ptm, side1, side2):
     # Find all ptm-occupied cells connected to a particular ptm-occupied cell. Cells are connected if
