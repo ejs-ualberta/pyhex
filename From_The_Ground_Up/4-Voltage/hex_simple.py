@@ -276,7 +276,6 @@ class Position: # hex board
               [BCH, ECH, ECH, WCH, WCH, WCH, WCH], self.R, self.C),
     ]
 
-
   def compute_voltage(self, ptm, voltages=None, max_delta=0.00001):
     set1, set2 = (self.TOP_ROW, self.BTM_ROW) if ptm == BCH else (self.LFT_COL, self.RGT_COL)
     g, side1, side2 = self.connection_graphs[ptm]
