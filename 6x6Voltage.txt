@@ -1,6 +1,8 @@
-TODO:
-	? x
-	x a2 ? o
+> x a2
+> ? o
+o-to-move: o wins ... d3
+793303 calls
+135300.3533s 
 
 
 > x c2

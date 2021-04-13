@@ -278,21 +278,32 @@ class Position: # hex board
 
 
   def compute_voltage(self, ptm, voltages=None, max_delta=0.00001):
+    optm = oppCH(ptm)
     set1, set2 = (self.TOP_ROW, self.BTM_ROW) if ptm == BCH else (self.LFT_COL, self.RGT_COL)
     g, side1, side2 = self.connection_graphs[ptm]
     # Voltage flows from side1 to side2
     if not voltages:
       voltages = [0.0] * (self.R * self.C) + [1.0, 0.0]
     else:
-      voltages = copy(voltages)
-    err = max_delta
-    keys = g.keys() - {side1, side2} # Don't update source or sink
-    occ = {i for i in range(len(self.brd)) if self.brd[i] == ptm}
-    empty = keys - occ
+      voltages = [0.0 if (self.brd[i] == optm) else voltages[i] for i in range(len(voltages) - 2)] + [1.0, 0.0]
+
+    p_occ = set()
+    o_occ = set()
+    empty = set()
+    for i in range(len(self.brd)):
+      b_i = self.brd[i]
+      if b_i == ptm:
+        p_occ.add(i)
+      elif b_i == optm:
+        o_occ.add(i)
+      else:
+        empty.add(i)
+
     # TODO: Better ordering for iteratively computing voltages?
+    err = max_delta
     while err >= max_delta:
       err = 0.0
-      for node in occ:
+      for node in p_occ:
         nbrs = self.nbrs[node]
         if node in set1:
           nbrs = nbrs | {side1}
@@ -300,8 +311,10 @@ class Position: # hex board
           nbrs = nbrs | {side2}
         v = 0.0
         for nbr in nbrs:
+          if nbr in o_occ:
+            continue
           v = max(v, voltages[nbr])
-        err = max(err, v - voltages[node])
+        err = max(err, abs(v - voltages[node]))
         voltages[node] = v
       for node in empty:
         nbrs = self.nbrs[node]
@@ -310,10 +323,15 @@ class Position: # hex board
         if node in set2:
           nbrs = nbrs | {side2}
         v = 0.0
+        i = 0
         for nbr in nbrs:
+          if nbr in o_occ:
+            continue
           v += voltages[nbr]
-        v /= len(nbrs)
-        err = max(err, v - voltages[node])
+          i += 1
+        if i:
+          v /= i
+        err = max(err, abs(v - voltages[node]))
         voltages[node] = v
     return voltages
 
