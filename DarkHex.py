@@ -3,6 +3,8 @@ from copy import copy, deepcopy
 import time
 import math
 from collections import deque
+from hex_simple import Pattern
+from hex_simple import UnionFind
 
 from sgf_parse import SgfTree
 
@@ -40,28 +42,18 @@ colorend, textcolor = escape_ch + '0m', escape_ch + '0;37m'
 stonecolors         = (textcolor, escape_ch + '0;35m', escape_ch + '0;32m')
 
 
-class UnionFind:
-  def __init__(self):
-    self.parents = {}
+'''
+class Strategy:
+  def __init__(self, ptm):
+    self.ptm = ptm
 
-  def union(self, elem1, elem2):
-    e1 = self.find(elem1)
-    e2 = self.find(elem2)
-    if e1 == e2:
-      return
-    self.parents[e2] = e1;
+  def update_strat(self, up_s):
+    pass
 
-  def find(self, elem):
-    while elem in self.parents:
-      p = self.parents[elem]
-      if p in self.parents:
-        self.parents[elem] = self.parents[p]
-      elem = p
-    return elem;
-
-  def __str__(self):
-    return str(self.parents)
-
+  def best_response(self):
+    # return best response strategy and its probability of winning
+    pass
+'''
 
 class DarkHexBoard:
   def __init__(self, rows, cols):
@@ -90,14 +82,52 @@ class DarkHexBoard:
       self.BTM_ROW.add(coord_to_point(self.R-1, c, self.C))
 
     self.connections = {BCH:UnionFind(), WCH:UnionFind()}
-    self.connection_graphs = {BCH:self.get_connections(BCH), WCH:self.get_connections(WCH)}
+    self.connection_graphs = {BCH:self.get_connections(BCH, BCH), WCH:self.get_connections(WCH, WCH)}
 
-  def connected_cells(self, pt, ptm, side1, side2):
+    self.dc_patterns = [
+      #  x x
+      # x *
+      #    o
+      Pattern([[0, 0, 0], [-1, 1, 0], [0, 1, -1], [1, 0, -1], [0, -1, 1]],
+              [ECH, BCH, BCH, BCH, WCH], self.R, self.C),
+      #  o o
+      # o *
+      #    x
+      Pattern([[0, 0, 0], [-1, 1, 0], [0, 1, -1], [1, 0, -1], [0, -1, 1]],
+              [ECH, WCH, WCH, WCH, BCH], self.R, self.C),
+      #  x x
+      # x * x
+      Pattern([[0, 0, 0], [-1, 1, 0], [0, 1, -1], [1, 0, -1], [1, -1, 0]],
+              [ECH, BCH, BCH, BCH, BCH], self.R, self.C),
+      #  o o
+      # o * o
+      Pattern([[0, 0, 0], [-1, 1, 0], [0, 1, -1], [1, 0, -1], [1, -1, 0]],
+              [ECH, WCH, WCH, WCH, WCH], self.R, self.C),
+      #  x
+      # x * o
+      #    o
+      Pattern([[0, 0, 0], [-1, 1, 0], [0, 1, -1], [0, -1, 1], [1, -1, 0]],
+              [ECH, BCH, BCH, WCH, WCH], self.R, self.C),
+    ]
+
+
+  def dead(self, ptm):
+    # Uses patterns to find dead cells.
+    # Does not find all dead cells.
+    inf_cs = set()
+    for i in range(len(self.brds[ptm])):
+      if self.brds[ptm][i] != ECH:
+        continue
+      for pat in self.dc_patterns:
+        inf_cs = inf_cs.union(pat.matches(self.brds[ptm], i))
+    return inf_cs
+
+  def connected_cells(self, pt, ptm, brd_ch, side1, side2):
     # Find all ptm-occupied cells connected to a particular ptm-occupied cell. Cells are connected if
     # there is a path between them of only ptm cells.
     set1, set2 = (self.TOP_ROW, self.BTM_ROW) if ptm == BCH else (self.LFT_COL, self.RGT_COL)
     q, seen, reachable = deque([]), set(), set()
-    if self.brds[ptm][pt] == ptm:
+    if self.brds[brd_ch][pt] == ptm:
       seen = {pt}
       q.append(pt)
       while len(q) > 0:
@@ -109,13 +139,13 @@ class DarkHexBoard:
           reachable.add(side2)
         nbrs = self.nbrs[c]
         for n in nbrs:
-          if self.brds[ptm][n] == ptm and n not in seen:
+          if self.brds[brd_ch][n] == ptm and n not in seen:
             q.append(n)
-          elif self.brds[ptm][n] == ECH:
+          elif self.brds[brd_ch][n] == ECH:
             reachable.add(n)
     return seen, reachable
 
-  def get_connections(self, ptm):
+  def get_connections(self, ptm, brd_ch):
     # Build the connection graphs
     set1, set2 = (self.TOP_ROW, self.BTM_ROW) if ptm == BCH else (self.LFT_COL, self.RGT_COL)
     connections = {}
@@ -126,7 +156,7 @@ class DarkHexBoard:
     connections[side1] = set()
     connections[side2] = set()
     for i in range(self.n):
-      if self.brds[ptm][i] == ECH:
+      if self.brds[brd_ch][i] == ECH:
         nbrs = self.nbrs[i]
         connections[i] = set()
         # Connect to two "sides"
@@ -138,14 +168,14 @@ class DarkHexBoard:
           connections[side2].add(i)
         # Connect adjacent empty cells
         for n in nbrs:
-          if self.brds[ptm][n] == ECH:
+          if self.brds[brd_ch][n] == ECH:
             connections[i].add(n)
 
     # Connect cells that are joined by ptm stones
     seen = set()
     for i in range(self.n):
-      if self.brds[ptm][i] == ptm and i not in seen:
-        s, r = self.connected_cells(i, ptm, side1, side2)
+      if self.brds[brd_ch][i] == ptm and i not in seen:
+        s, r = self.connected_cells(i, ptm, brd_ch, side1, side2)
         seen = seen.union(s)
         for c in r:
           cr = connections[c].union(r)
@@ -208,18 +238,33 @@ class DarkHexBoard:
     else:
       self.brds[ch] = change_str(brd, where, ch)
       ret = True
-    self.connection_graphs[ch] = self.get_connections(ch)
+    self.connection_graphs[ch] = self.get_connections(ch, ch)
     return ret
 
   def move_to_brd(self, ch, where, brd_ch):
+    obrd_ch = oppCH(brd_ch)
     brd = self.brds[brd_ch]
     if brd[where] != ECH:
       return False
     self.H.append((ch, where, copy(self.brds), deepcopy(self.connections), copy(self.connection_graphs)))
     self.brds[brd_ch] = change_str(brd, where, ch)
-    self.connection_graphs[brd_ch] = self.get_connections(brd_ch)
+    self.connection_graphs[brd_ch] = self.get_connections(brd_ch, brd_ch)
+    self.connection_graphs[obrd_ch] = self.get_connections(obrd_ch, brd_ch)
     return True
 
+  def save_state(self):
+    return (copy(self.brds), copy(self.connections), copy(self.connection_graphs))
+
+  def restore_state(self, state):
+    self.brds, self.connections, self.connection_graphs = state
+
+  def refresh(self, brd_ch):
+    obrd_ch = oppCH(brd_ch)
+    self.connection_graphs[brd_ch] = self.get_connections(brd_ch, brd_ch)
+    self.connection_graphs[obrd_ch] = self.get_connections(obrd_ch, brd_ch)
+
+  
+  '''
   def b_win_move(self, nbs=0, nws=0):
     calls = 1
     if self.has_win(BCH):
@@ -287,14 +332,84 @@ class DarkHexBoard:
 
   def win_move(self, ptm):
     # assume neither player has won yet
+    ret = ''
+    cg = self.connection_graphs
+    self.connection_graphs = {BCH:self.get_connections(BCH, ptm), WCH:self.get_connections(WCH, ptm)}
     if ptm == BCH:
       brd = self.brds[BCH]
-      return self.b_win_move(brd.count(BCH), brd.count(WCH))
+      ret =  self.b_win_move(brd.count(BCH), brd.count(WCH))
     elif ptm == WCH:
       brd = self.brds[WCH]
-      return self.w_win_move(brd.count(BCH), brd.count(WCH))
+      ret = self.w_win_move(brd.count(BCH), brd.count(WCH))
+    self.connection_graphs = cg
+    return ret
+  
+  def bound_win_prob(self, bstrat, wstrat, iterations=100):
+    bs = deepcopy(bstrat)
+    ws = deepcopy(wstrat)
+    lb = 0.0
+    ub = 0.0
+    for i in range(iterations):
+      br, np = bs.best_response()
+      ws.update_strat(br)
+      lb = max(1.0-np, lb)
+      br, np = ws.best_response()
+      ub = min(np, ub)
+      bs.update_strat(br)
+    return lb, ub
+  '''
+
+  def _win_move(self, ptm, hidden):
+    optm = oppCH(ptm)
+    calls = 1
+    if self.has_win(ptm):
+      return True, 1
+
+    splen = self.shortest_path_len_from_to(*self.connection_graphs[optm])
+    if (splen <= hidden):
+      return '', 1
+
+    dead = self.dead(ptm)
+    state = self.save_state()
+    for c in dead:
+        self.brds[ptm] = change_str(self.brds[ptm], c, ptm)
+    self.refresh(ptm)
+
+    moves = {i for i in range(self.n) if self.brds[ptm][i]==ECH}
+    if not hidden:
+      for move in moves:
+        self.move_to_brd(ptm, move, ptm)
+        wm, c = self._win_move(ptm, hidden + 1)
+        self.undo()
+        calls += c
+        if wm:
+          self.restore_state(state)
+          return point_to_alphanum(move, self.C), calls
     else:
-      return ''
+      for move in moves:
+        self.move_to_brd(ptm, move, ptm)
+        wm, c = self._win_move(ptm, hidden + 1)
+        self.undo()
+        calls += c
+        self.move_to_brd(optm, move, ptm)
+        wm1, c = self._win_move(ptm, hidden - 1)
+        self.undo()
+        calls += c
+        if wm and wm1:
+          self.restore_state(state)
+          return point_to_alphanum(move, self.C), calls
+
+    self.restore_state(state)
+    return '', calls
+
+  def win_move(self, ptm):
+    # assume neither player has won yet
+    ret = ''
+    cg = self.connection_graphs
+    self.connection_graphs = {BCH:self.get_connections(BCH, ptm), WCH:self.get_connections(WCH, ptm)}
+    ret, c = self._win_move(ptm, 0)
+    self.connection_graphs = cg
+    return ret, c
 
   def showboard(self, ptm):
     def paint(s):
