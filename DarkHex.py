@@ -402,12 +402,15 @@ class DarkHexBoard:
     self.restore_state(state)
     return '', calls
 
-  def win_move(self, ptm):
+  def win_move(self, ptm, hidden=None):
     # assume neither player has won yet
+    if hidden == None:
+      optm = oppCH(ptm)
+      hidden = self.brds[optm].count(optm) - self.brds[ptm].count(optm)
     ret = ''
     cg = self.connection_graphs
     self.connection_graphs = {BCH:self.get_connections(BCH, ptm), WCH:self.get_connections(WCH, ptm)}
-    ret, c = self._win_move(ptm, 0)
+    ret, c = self._win_move(ptm, hidden)
     self.connection_graphs = cg
     return ret, c
 
@@ -484,13 +487,13 @@ class DarkHexBoard:
         _, _, self.brds, self.connections, self.connection_graphs = self.H.pop()
     return True
 
-  def msg(self, ch):
+  def msg(self, ch, hidden):
     optm = oppCH(ch)
     if self.has_win(ch): return(ch + ' has won')
     elif self.has_win(optm): return(optm + ' has won')
     else:
       st = time.time()
-      wm, calls = self.win_move(ch)
+      wm, calls = self.win_move(ch, hidden)
       out = '\n' + ch + '-to-move: '
       out += (ch + ' wins' if wm else ch + ' does not win with probability 1')
       out += (' ... ' if wm else ' ') + wm + '\n'
@@ -563,8 +566,17 @@ def interact():
         p.undo()
 
     elif cmd[0]=='?':
-      if len(cmd) == 2 and cmd[1] in {BCH, WCH}: 
-          print(p.msg(cmd[1]))
+      if len(cmd) in {3, 2} and cmd[1] in {BCH, WCH}:
+        hidden = None
+        try:
+          h = int(cmd[2])
+          if h < 0:
+            print("Please enter a number >= 0")
+          else:
+            hidden = h
+        except:
+          pass
+        print(p.msg(cmd[1], hidden))
 
 
     elif (cmd[0] in PTS):
