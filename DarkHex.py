@@ -414,54 +414,56 @@ class DarkHexBoard:
     self.connection_graphs = cg
     return ret, c
 
-  def find_winning_positions(self):
+  def find_winning_positions(self, ptm):
     # TODO: finish this
     BT, WT, NT = (0, 1, 2)
-    def illegal(brd, occ):
-      le = len(occ[ECH])
-      lw = len(occ[WCH])
-      lb = len(occ[BCH])
-      # TODO: More illegal boards?
-      if le < lb - lw - 1 or le < lw - lb: 
-        return True
-      return False
+    #def illegal(brd, occ, hidden):
+    #  le = len(occ[ECH])
+    #  lw = len(occ[WCH])
+    #  lb = len(occ[BCH])
+    #  # TODO: More illegal boards?
+    #  if hidden < le or le < lb - lw - 1 or le < lw - lb: 
+    #    return True
+    #  return False
 
-    def init_states(layers, brd):
+    def init_states(layers, brd, hidden, ptm):
+      optm = oppCH(ptm)
       occ = {BCH:[], WCH:[], ECH:[]}
       for i in range(self.n):
         occ[brd[i]].append(i)
-      if brd in layers[len(occ[ECH])] or illegal(brd, occ):
+      n_stones = len(occ[BCH]) + len(occ[WCH]) + hidden
+      key = (brd, hidden)
+      if key in layers[n_stones]: # or illegal(brd, occ):
         return
 
+      #TODO: replace this with a unionfind
       bconn, side1, side2 = self.get_connections(BCH, brd)
       wconn, _, _ = self.get_connections(WCH, brd)
-      if side1 in bconn[side2]:
-        layers[len(occ[ECH])][brd] = BT
-      elif side1 in wconn[side2]:
-        layers[len(occ[ECH])][brd] = WT
+      b_win = side1 in bconn[side2]
+      w_win = side1 in wconn[side2]
+      if b_win or (not w_win and ptm == WCH and hidden == len(occ[ECH])):
+        layers[n_stones][key] = BT
+        return
+      elif w_win or (ptm == BCH and hidden == len(occ[ECH])):
+        layers[n_stones][key] = WT
+        return
       else:
-        layers[len(occ[ECH])][brd] = NT
+        layers[n_stones][key] = NT
 
       for move in occ[ECH]:
-        init_states(layers, change_str(brd, move, BCH))
-        init_states(layers, change_str(brd, move, WCH))
+        init_states(layers, change_str(brd, move, ptm), min(len(occ[ECH])-1, hidden + 1), ptm)
+        if hidden > 0:
+          init_states(layers, change_str(brd, move, optm), hidden-1, ptm)
 
-    empty = [i for i in range(self.n) if self.brds[BCH][i] == self.brds[WCH][i] == ECH]
-    layers = [{} for i in range(len(empty) + 1)]
-    init_states(layers, ECH * self.n)
-
-    i = 0
-    wins = {BT:[], WT:[]}
-    for layer in layers[1:]:
-      for state in layer:
-        for move in empty:
-          s1 = change_str(state, move, BCH)
-          s2 = change_str(state, move, WCH)
-          if s1 not in layers[i] or s2 not in layers[i]:
-            continue
-          li1 = layers[i][s1]
-          li2 = layers[i][s2]
-
+    layers = [{} for i in range(self.n + 1)]
+    if ptm == BCH:
+      init_states(layers, ECH * self.n, 0, BCH)
+    elif ptm == WCH:
+      init_states(layers, ECH * self.n, 1, WCH)
+    else:
+      return
+    #return layers
+    
 
   def showboard(self, ptm):
     def paint(s):
