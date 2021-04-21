@@ -82,7 +82,7 @@ class DarkHexBoard:
       self.BTM_ROW.add(coord_to_point(self.R-1, c, self.C))
 
     self.connections = {BCH:UnionFind(), WCH:UnionFind()}
-    self.connection_graphs = {BCH:self.get_connections(BCH, BCH), WCH:self.get_connections(WCH, WCH)}
+    self.connection_graphs = {BCH:self.get_connections(BCH, self.brds[BCH]), WCH:self.get_connections(WCH, self.brds[WCH])}
 
     self.dc_patterns = [
       #  x x
@@ -122,12 +122,12 @@ class DarkHexBoard:
         inf_cs = inf_cs.union(pat.matches(self.brds[ptm], i))
     return inf_cs
 
-  def connected_cells(self, pt, ptm, brd_ch, side1, side2):
+  def connected_cells(self, pt, ptm, brd, side1, side2):
     # Find all ptm-occupied cells connected to a particular ptm-occupied cell. Cells are connected if
     # there is a path between them of only ptm cells.
     set1, set2 = (self.TOP_ROW, self.BTM_ROW) if ptm == BCH else (self.LFT_COL, self.RGT_COL)
     q, seen, reachable = deque([]), set(), set()
-    if self.brds[brd_ch][pt] == ptm:
+    if brd[pt] == ptm:
       seen = {pt}
       q.append(pt)
       while len(q) > 0:
@@ -139,13 +139,13 @@ class DarkHexBoard:
           reachable.add(side2)
         nbrs = self.nbrs[c]
         for n in nbrs:
-          if self.brds[brd_ch][n] == ptm and n not in seen:
+          if brd[n] == ptm and n not in seen:
             q.append(n)
-          elif self.brds[brd_ch][n] == ECH:
+          elif brd[n] == ECH:
             reachable.add(n)
     return seen, reachable
 
-  def get_connections(self, ptm, brd_ch):
+  def get_connections(self, ptm, brd):
     # Build the connection graphs
     set1, set2 = (self.TOP_ROW, self.BTM_ROW) if ptm == BCH else (self.LFT_COL, self.RGT_COL)
     connections = {}
@@ -156,7 +156,7 @@ class DarkHexBoard:
     connections[side1] = set()
     connections[side2] = set()
     for i in range(self.n):
-      if self.brds[brd_ch][i] == ECH:
+      if brd[i] == ECH:
         nbrs = self.nbrs[i]
         connections[i] = set()
         # Connect to two "sides"
@@ -168,14 +168,14 @@ class DarkHexBoard:
           connections[side2].add(i)
         # Connect adjacent empty cells
         for n in nbrs:
-          if self.brds[brd_ch][n] == ECH:
+          if brd[n] == ECH:
             connections[i].add(n)
 
     # Connect cells that are joined by ptm stones
     seen = set()
     for i in range(self.n):
-      if self.brds[brd_ch][i] == ptm and i not in seen:
-        s, r = self.connected_cells(i, ptm, brd_ch, side1, side2)
+      if brd[i] == ptm and i not in seen:
+        s, r = self.connected_cells(i, ptm, brd, side1, side2)
         seen = seen.union(s)
         for c in r:
           cr = connections[c].union(r)
@@ -222,7 +222,7 @@ class DarkHexBoard:
       return ret
     where = coord_to_point(x,y,self.C)
     if ch != ECH and self.brds[ch][where] != ECH:
-      print('\n  sorry, position occupied')
+      print('sorry, position occupied')
       return ret
     return self.move(ch, where)
 
@@ -238,7 +238,7 @@ class DarkHexBoard:
     else:
       self.brds[ch] = change_str(brd, where, ch)
       ret = True
-    self.connection_graphs[ch] = self.get_connections(ch, ch)
+    self.connection_graphs[ch] = self.get_connections(ch, self.brds[ch])
     return ret
 
   def move_to_brd(self, ch, where, brd_ch):
@@ -248,8 +248,8 @@ class DarkHexBoard:
       return False
     self.H.append((ch, where, copy(self.brds), deepcopy(self.connections), copy(self.connection_graphs)))
     self.brds[brd_ch] = change_str(brd, where, ch)
-    self.connection_graphs[brd_ch] = self.get_connections(brd_ch, brd_ch)
-    self.connection_graphs[obrd_ch] = self.get_connections(obrd_ch, brd_ch)
+    self.connection_graphs[brd_ch] = self.get_connections(brd_ch, self.brds[brd_ch])
+    self.connection_graphs[obrd_ch] = self.get_connections(obrd_ch, self.brds[brd_ch])
     return True
 
   def save_state(self):
@@ -260,8 +260,8 @@ class DarkHexBoard:
 
   def refresh(self, brd_ch):
     obrd_ch = oppCH(brd_ch)
-    self.connection_graphs[brd_ch] = self.get_connections(brd_ch, brd_ch)
-    self.connection_graphs[obrd_ch] = self.get_connections(obrd_ch, brd_ch)
+    self.connection_graphs[brd_ch] = self.get_connections(brd_ch, self.brds[brd_ch])
+    self.connection_graphs[obrd_ch] = self.get_connections(obrd_ch, self.brds[brd_ch])
 
   
   '''
@@ -409,10 +409,59 @@ class DarkHexBoard:
       hidden = self.brds[optm].count(optm) - self.brds[ptm].count(optm)
     ret = ''
     cg = self.connection_graphs
-    self.connection_graphs = {BCH:self.get_connections(BCH, ptm), WCH:self.get_connections(WCH, ptm)}
+    self.connection_graphs = {BCH:self.get_connections(BCH, self.brds[ptm]), WCH:self.get_connections(WCH, self.brds[ptm])}
     ret, c = self._win_move(ptm, hidden)
     self.connection_graphs = cg
     return ret, c
+
+  def find_winning_positions(self):
+    # TODO: finish this
+    BT, WT, NT = (0, 1, 2)
+    def illegal(brd, occ):
+      le = len(occ[ECH])
+      lw = len(occ[WCH])
+      lb = len(occ[BCH])
+      # TODO: More illegal boards?
+      if le < lb - lw - 1 or le < lw - lb: 
+        return True
+      return False
+
+    def init_states(layers, brd):
+      occ = {BCH:[], WCH:[], ECH:[]}
+      for i in range(self.n):
+        occ[brd[i]].append(i)
+      if brd in layers[len(occ[ECH])] or illegal(brd, occ):
+        return
+
+      bconn, side1, side2 = self.get_connections(BCH, brd)
+      wconn, _, _ = self.get_connections(WCH, brd)
+      if side1 in bconn[side2]:
+        layers[len(occ[ECH])][brd] = BT
+      elif side1 in wconn[side2]:
+        layers[len(occ[ECH])][brd] = WT
+      else:
+        layers[len(occ[ECH])][brd] = NT
+
+      for move in occ[ECH]:
+        init_states(layers, change_str(brd, move, BCH))
+        init_states(layers, change_str(brd, move, WCH))
+
+    empty = [i for i in range(self.n) if self.brds[BCH][i] == self.brds[WCH][i] == ECH]
+    layers = [{} for i in range(len(empty) + 1)]
+    init_states(layers, ECH * self.n)
+
+    i = 0
+    wins = {BT:[], WT:[]}
+    for layer in layers[1:]:
+      for state in layer:
+        for move in empty:
+          s1 = change_str(state, move, BCH)
+          s2 = change_str(state, move, WCH)
+          if s1 not in layers[i] or s2 not in layers[i]:
+            continue
+          li1 = layers[i][s1]
+          li2 = layers[i][s2]
+
 
   def showboard(self, ptm):
     def paint(s):
@@ -521,17 +570,18 @@ class DarkHexBoard:
     f.close()
 
 def printmenu():
-  print('  h                              help menu')
-  print('  s x|o                     show the board')
-  print('  ? x|o      solve the position for x or o')
-  print('  z n m       change the board size to nxm')
-  print('  x b2                          play x b 2')
-  print('  o e3                          play o e 3')
-  #print('  . a2                           erase a 2')
-  print('  u                                   undo')
-  print('  sv                  save the game as sgf')
-  print('  ld                  load a game from sgf')
-  print('  [return]                            quit')
+  print('  h                                      help menu')
+  print('  s x|o                             show the board')
+  print('  ? x|o [#hidden]    solve the position for x or o')
+  print('  z n m               change the board size to nxm')
+  print('  x b2                                  play x b 2')
+  print('  o e3                                  play o e 3')
+  #print('  . a2                                   erase a 2')
+  print('  pr x|o e3              play and reveal x|o at e3')
+  print('  u                                           undo')
+  print('  sv                          save the game as sgf')
+  print('  ld                          load a game from sgf')
+  print('  [return]                                    quit')
 
 
 def interact():
@@ -581,6 +631,18 @@ def interact():
 
     elif (cmd[0] in PTS):
       print(["Move Unsuccessful", "Move Successful"][p.requestmove(cmd[0] + ' ' + ''.join(cmd[1:]))])
+
+    elif (cmd[0]) == 'pr':
+      success = 0
+      try:
+        ptm = cmd[1]
+        optm = oppCH(ptm)
+        success = p.requestmove(ptm + ' ' + ''.join(cmd[2:]))
+        if success:
+          p.requestmove(optm + ' ' + ''.join(cmd[2:]))
+        print(["Move Unsuccessful", "Move Successful"][success])
+      except:
+        pass
 
     elif (cmd[0] == 's'):
       try:
