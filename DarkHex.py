@@ -416,7 +416,7 @@ class DarkHexBoard:
 
   def find_winning_positions(self, ptm):
     # TODO: finish this
-    BT, WT, NT = (0, 1, 2)
+    optm = oppCH(ptm)
     #def illegal(brd, occ, hidden):
     #  le = len(occ[ECH])
     #  lw = len(occ[WCH])
@@ -427,6 +427,7 @@ class DarkHexBoard:
     #  return False
 
     def init_states(layers, brd, hidden, ptm):
+      # WARNING!!!! contains bugs and is only for black atm
       optm = oppCH(ptm)
       occ = {BCH:[], WCH:[], ECH:[]}
       for i in range(self.n):
@@ -442,13 +443,13 @@ class DarkHexBoard:
       b_win = side1 in bconn[side2]
       w_win = side1 in wconn[side2]
       if b_win or (not w_win and ptm == WCH and hidden == len(occ[ECH])):
-        layers[n_stones][key] = BT
+        layers[n_stones][key] = BCH
         return
       elif w_win or (ptm == BCH and hidden == len(occ[ECH])):
-        layers[n_stones][key] = WT
+        layers[n_stones][key] = WCH
         return
       else:
-        layers[n_stones][key] = NT
+        layers[n_stones][key] = ECH
 
       for move in occ[ECH]:
         init_states(layers, change_str(brd, move, ptm), min(len(occ[ECH])-1, hidden + 1), ptm)
@@ -456,14 +457,33 @@ class DarkHexBoard:
           init_states(layers, change_str(brd, move, optm), hidden-1, ptm)
 
     layers = [{} for i in range(self.n + 1)]
-    if ptm == BCH:
-      init_states(layers, ECH * self.n, 0, BCH)
-    elif ptm == WCH:
-      init_states(layers, ECH * self.n, 1, WCH)
-    else:
-      return
+    init_states(layers, ECH * self.n, {BCH:0, WCH:1}[ptm], ptm)
+    #init_states(layers, ECH * self.n, 1, WCH)
     #return layers
-    
+    layers.reverse()
+
+    i = 2
+    #TODO: what i for white?
+    for layer in layers[i:]:
+      keys = sorted(layer.keys(), key=lambda x: x[1])
+      for state in keys:
+        brd, hidden = state
+        empty = [i for i in range(self.n) if brd[i] == ECH]
+        for move in empty:
+          b1 = change_str(brd, move, ptm)
+          ret = layers[i-2][(b1, hidden+1)] == ptm
+          if hidden > 0:
+            b2 = change_str(brd, move, optm)
+            if (b2, hidden-1) in layer:
+              ret = ret and layer[(b2, hidden-1)] == ptm
+            else:
+              print("KEY ERROR", (b2, hidden-1))
+          if ret:
+            layer[state] = ptm
+            #print(brd)
+            break
+      i += 1
+    return layers#{j[0] for i in layers for j in i if i[j] == ptm}
 
   def showboard(self, ptm):
     def paint(s):
